@@ -1,5 +1,9 @@
 // Package vector provides functions for learning about vectors and vector
 // databases.
+// This code was taken from:
+// https://github.com/kabychow/go-cosinesimilarity
+// https://github.com/quartercastle/vector
+// https://github.com/gonum/gonum
 package vector
 
 import "math"
@@ -10,8 +14,6 @@ type Embedding interface {
 }
 
 // =============================================================================
-
-// https://github.com/kabychow/go-cosinesimilarity/blob/50bc5870c5491cdeaccefaa686572bc8f568b067/cosine_similarity.go#L5
 
 // SimilarityResult represents the result of performaing a similarity check
 // between two embeddings.
@@ -61,8 +63,6 @@ func CosineSimilarity(x, y []float32) float32 {
 }
 
 // =============================================================================
-
-// https://github.com/quartercastle/vector/blob/50708e32ada95ec9b29ff6bc6e2e7095fac5b648/arithmetic.go#L19
 
 const (
 	x = iota
@@ -141,8 +141,6 @@ func Sub(a, b []float32) []float32 {
 	return a
 }
 
-// This function comes from this repo.
-// https://github.com/gonum/gonum/blob/c3867503e73e5c3fee7ab93e3c2c562eb2be8178/internal/asm/f64/axpy.go#L23
 func axpyUnitaryTo(dst []float32, alpha float32, x, y []float32) {
 	dim := len(y)
 	for i, v := range x {

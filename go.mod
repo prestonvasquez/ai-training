@@ -2,7 +2,10 @@ module github.com/ardanlabs/vector
 
 go 1.22.4
 
-require github.com/tmc/langchaingo v0.1.12
+require (
+	github.com/tmc/langchaingo v0.1.12
+	golang.org/x/text v0.15.0
+)
 
 require (
 	github.com/dlclark/regexp2 v1.10.0 // indirect

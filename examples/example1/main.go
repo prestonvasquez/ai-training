@@ -10,6 +10,8 @@ import (
 	https://www.youtube.com/watch?v=72XgD322wZ8
 	https://www.youtube.com/watch?v=Fuw0wv3X-0o&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=40
 	https://www.youtube.com/watch?v=hQwFeIupNP0&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=41
+	https://machinelearningmastery.com/what-are-word-embeddings/
+	https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/
 
 	"embeddings" emphasizes the notion of representing data in a meaningful and
 	structured way (via features).

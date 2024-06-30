@@ -12,6 +12,9 @@ example1:
 example2:
 	go run examples/example2/main.go
 
+example3:
+	go run examples/example3/main.go
+
 # ==============================================================================
 # Install dependencies
 #   https://ollama.com/
