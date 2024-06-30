@@ -6,7 +6,7 @@ import "math"
 
 // Embedding represents data that can be vectorized.
 type Embedding interface {
-	Vector() []float64
+	Vector() []float32
 }
 
 // =============================================================================
@@ -18,8 +18,8 @@ type Embedding interface {
 type SimilarityResult struct {
 	Target     Embedding
 	Record     Embedding
-	Similarity float64
-	Percentage float64
+	Similarity float32
+	Percentage float32
 }
 
 // Similarity calculates the similarity between two vectors.
@@ -44,20 +44,20 @@ func Similarity(target Embedding, records ...Embedding) []SimilarityResult {
 
 // CosineSimilarity takes two vectors and computes the similarity between
 // them using a cosine algorithm.
-func CosineSimilarity(x, y []float64) float64 {
+func CosineSimilarity(x, y []float32) float32 {
 	var sum, s1, s2 float64
 
 	for i := 0; i < len(x); i++ {
-		sum += x[i] * y[i]
-		s1 += x[i] * x[i]
-		s2 += y[i] * y[i]
+		sum += float64(x[i] * y[i])
+		s1 += float64(x[i] * x[i])
+		s2 += float64(y[i] * y[i])
 	}
 
 	if s1 == 0 || s2 == 0 {
 		return 0.0
 	}
 
-	return sum / (math.Sqrt(s1) * math.Sqrt(s2))
+	return float32(sum / (math.Sqrt(s1) * math.Sqrt(s2)))
 }
 
 // =============================================================================
@@ -71,7 +71,7 @@ const (
 )
 
 // Add calculates the addition of two vectors.
-func Add(a, b []float64) []float64 {
+func Add(a, b []float32) []float32 {
 	dimA, dimB := len(a), len(b)
 
 	if (dimA == 1 || dimA == 2 || dimA == 3) && dimB == 1 {
@@ -104,7 +104,7 @@ func Add(a, b []float64) []float64 {
 }
 
 // Sub calculates the subtraction of two vectors.
-func Sub(a, b []float64) []float64 {
+func Sub(a, b []float32) []float32 {
 	dimA, dimB := len(a), len(b)
 
 	if (dimA == 1 || dimA == 2 || dimA == 3) && dimB == 1 {
@@ -143,7 +143,7 @@ func Sub(a, b []float64) []float64 {
 
 // This function comes from this repo.
 // https://github.com/gonum/gonum/blob/c3867503e73e5c3fee7ab93e3c2c562eb2be8178/internal/asm/f64/axpy.go#L23
-func axpyUnitaryTo(dst []float64, alpha float64, x, y []float64) {
+func axpyUnitaryTo(dst []float32, alpha float32, x, y []float32) {
 	dim := len(y)
 	for i, v := range x {
 		if i == dim {

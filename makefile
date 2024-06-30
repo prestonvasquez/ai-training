@@ -7,10 +7,10 @@ SHELL = $(if $(wildcard $(SHELL_PATH)),/bin/ash,/bin/bash)
 # Hack
 
 example1:
-	go run api/cmd/example1/main.go
+	go run examples/example1/main.go
 
 example2:
-	go run api/cmd/example2/main.go
+	go run examples/example2/main.go
 
 # ==============================================================================
 # Install dependencies
@@ -19,7 +19,7 @@ example2:
 #   https://github.com/tmc/langchaingo/
 
 ollama:
-	ollama run llama3
+	ollama serve
 
 # ==============================================================================
 # Modules support
