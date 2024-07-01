@@ -98,8 +98,8 @@ func trainModel() error {
 			Sequencer: ".\n?!",
 		},
 		Vector: word2vec.ConfigWordVector{
-			Vector:    100,
-			Window:    5,
+			Vector:    300,
+			Window:    10,
 			Threshold: 0.001,
 			Frequency: 2,
 		},
@@ -142,36 +142,36 @@ func testModel() error {
 
 	// -------------------------------------------------------------------------
 
-	var cheap [100]float32
-	if err := w2v.VectorOf("cheap", cheap[:]); err != nil {
+	var terrible [300]float32
+	if err := w2v.VectorOf("terrible", terrible[:]); err != nil {
 		return err
 	}
 
-	var inexpensive [100]float32
-	if err := w2v.VectorOf("inexpensive", inexpensive[:]); err != nil {
-		return err
-	}
-
-	v := vector.CosineSimilarity(cheap[:], inexpensive[:])
-
-	fmt.Println("The cosine similarity between the word \"cheap\" and \"inexpensive\"")
-	fmt.Printf("%.3f%%\n", v*100)
-
-	// -------------------------------------------------------------------------
-
-	var bad [100]float32
-	if err := w2v.VectorOf("bad", bad[:]); err != nil {
-		return err
-	}
-
-	var horrible [100]float32
+	var horrible [300]float32
 	if err := w2v.VectorOf("horrible", horrible[:]); err != nil {
 		return err
 	}
 
-	v = vector.CosineSimilarity(bad[:], horrible[:])
+	v := vector.CosineSimilarity(terrible[:], horrible[:])
 
-	fmt.Println("The cosine similarity between the word \"bad\" and \"horrible\"")
+	fmt.Println("The cosine similarity between the word \"terrible\" and \"horrible\"")
+	fmt.Printf("%.3f%%\n", v*100)
+
+	// -------------------------------------------------------------------------
+
+	var price [300]float32
+	if err := w2v.VectorOf("price", price[:]); err != nil {
+		return err
+	}
+
+	var battery [300]float32
+	if err := w2v.VectorOf("battery", battery[:]); err != nil {
+		return err
+	}
+
+	v = vector.CosineSimilarity(price[:], battery[:])
+
+	fmt.Println("The cosine similarity between the word \"price\" and \"battery\"")
 	fmt.Printf("%.3f%%\n", v*100)
 
 	return nil
