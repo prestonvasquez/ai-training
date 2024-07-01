@@ -18,14 +18,14 @@ import (
 */
 
 type data struct {
-	Name string
-	Text string
-	Vec  []float32
+	Name      string
+	Text      string
+	Embedding []float32 // The vector where the data is embedded in space.
 }
 
 // Vector can convert the specified data into a vector.
 func (d data) Vector() []float32 {
-	return d.Vec
+	return d.Embedding
 }
 
 // =============================================================================
@@ -38,7 +38,7 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
-	// Apply the feature vectors to the hand crafted dataPoints.
+	// Apply the feature vectors to the hand crafted data points.
 	dataPoints := []vector.Data{
 		data{Name: "Horse   ", Text: "Animal, Female"},
 		data{Name: "Man     ", Text: "Human,  Male,   Pants, Poor, Worker"},
@@ -50,12 +50,12 @@ func main() {
 	for i, dp := range dataPoints {
 		dataPoint := dp.(data)
 
-		embed, err := llm.CreateEmbedding(context.Background(), []string{dataPoint.Text})
+		vectors, err := llm.CreateEmbedding(context.Background(), []string{dataPoint.Text})
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		dataPoint.Vec = embed[0]
+		dataPoint.Embedding = vectors[0]
 		dataPoints[i] = dataPoint
 	}
 
