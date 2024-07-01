@@ -21,17 +21,24 @@ import (
 	"unsafe"
 )
 
-// word2vec model
+// Nearest represents the word and the percent of closeness.
+type Nearest struct {
+	Word     string
+	Distance float32
+}
+
+// =============================================================================
+
+// Model represents a word2vec model.
 type Model struct {
 	fileModel  string
 	vectorSize int
-
-	h unsafe.Pointer
+	h          unsafe.Pointer
 }
 
-// Loads pre-trained model
-func Load(model string, vector int) (w2v Model, err error) {
-	w2v.fileModel = model
+// Loads takes a file on disk and loads it for processing.
+func Load(fileModel string, vector int) (w2v Model, err error) {
+	w2v.fileModel = fileModel
 	w2v.vectorSize = 300
 	if vector != 0 {
 		w2v.vectorSize = vector
@@ -48,21 +55,17 @@ func Load(model string, vector int) (w2v Model, err error) {
 	return w2v, nil
 }
 
-//
-//
-//
-
-// Calculates embedding vector for input term (word)
-func (w2v Model) VectorOf(word string, vector []float32) error {
+// VectorOf calculates embedding vector for input term (word)
+func (m *Model) VectorOf(word string, vector []float32) error {
 	cword := C.CString(word)
 	defer C.free(unsafe.Pointer(cword))
 
-	ptr := C.VectorOf(w2v.h, cword)
+	ptr := C.VectorOf(m.h, cword)
 	if ptr == nil {
 		return errors.New("unknown tokens")
 	}
 
-	array := unsafe.Slice((*float32)(ptr), w2v.vectorSize)
+	array := unsafe.Slice((*float32)(ptr), m.vectorSize)
 
 	copy(vector, array)
 
@@ -71,17 +74,17 @@ func (w2v Model) VectorOf(word string, vector []float32) error {
 	return nil
 }
 
-// Calculates embedding for document
-func (w2v Model) Embedding(doc string, vector []float32) error {
+// Embedding calculates the embedding for document.
+func (m *Model) Embedding(doc string, vector []float32) error {
 	cdoc := C.CString(doc)
 	defer C.free(unsafe.Pointer(cdoc))
 
-	ptr := C.Embedding(w2v.h, cdoc)
+	ptr := C.Embedding(m.h, cdoc)
 	if ptr == nil {
 		return errors.New("unknown tokens")
 	}
 
-	array := unsafe.Slice((*float32)(ptr), w2v.vectorSize)
+	array := unsafe.Slice((*float32)(ptr), m.vectorSize)
 
 	copy(vector, array)
 
@@ -90,28 +93,19 @@ func (w2v Model) Embedding(doc string, vector []float32) error {
 	return nil
 }
 
-//
-//
-//
-
-type Nearest struct {
-	Word     string
-	Distance float32
-}
-
-type nearest_t struct {
-	seq *C.float
-	len C.ulong
-	buf *C.char
-}
-
 // Lookup nearest words from the model
-func (w2v Model) Lookup(query string, seq []Nearest) error {
+func (m *Model) Lookup(query string, seq []Nearest) error {
 	cq := C.CString(query)
 	defer C.free(unsafe.Pointer(cq))
 
+	type nearest_t struct {
+		seq *C.float
+		len C.ulong
+		buf *C.char
+	}
+
 	k := len(seq)
-	bag := (nearest_t)(C.Lookup(w2v.h, cq, C.ulong(k)))
+	bag := (nearest_t)(C.Lookup(m.h, cq, C.ulong(k)))
 
 	if bag.seq == nil || bag.buf == nil {
 		return errors.New("unknown tokens")

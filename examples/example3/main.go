@@ -93,13 +93,13 @@ func trainModel() error {
 
 	config := word2vec.Config{
 		Corpus: word2vec.ConfigCorpus{
-			Dataset:   "zarf/data/" + fileName + ".txt",
+			InputFile: "zarf/data/" + fileName + ".txt",
 			Tokenizer: " \n,.-!?:;/\"#$%&'()*+<=>@[]\\^_`{|}~\t\v\f\r",
 			Sequencer: ".\n?!",
 		},
 		Vector: word2vec.ConfigWordVector{
 			Vector:    300,
-			Window:    10,
+			Window:    5,
 			Threshold: 1e-3,
 			Frequency: 5,
 		},
@@ -107,12 +107,14 @@ func trainModel() error {
 			Epoch: 10,
 			Rate:  0.05,
 		},
-		UseCBOW:              true,
-		UseNegativeSampling:  true,
-		SizeNegativeSampling: 5,
-		Threads:              runtime.GOMAXPROCS(0),
-		Verbose:              true,
-		Output:               "zarf/data/" + fileName + ".w2v",
+		UseSkipGram:            false,
+		UseCBOW:                true,
+		UseNegativeSampling:    true,
+		UseHierarchicalSoftMax: false,
+		SizeNegativeSampling:   5,
+		Threads:                runtime.GOMAXPROCS(0),
+		Verbose:                true,
+		Output:                 "zarf/data/" + fileName + ".w2v",
 	}
 
 	if err := word2vec.Train(config); err != nil {
