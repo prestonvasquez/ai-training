@@ -17,16 +17,6 @@ import (
 	https://www.youtube.com/watch?v=Q2NtCcqmIww&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=42
 	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
 
-	// Build The libw2v.dylib library
-	cd zarf/libw2v
-	mkdir _build && cd _build
-	brew install cmake
-	cmake -DCMAKE_BUILD_TYPE=Release ../libw2v
-	make
-
-	// Copy the dynamic library so the system can find it.
-	cp ../libw2v/lib/libw2v.dylib /usr/local/lib/libw2v.dylib
-
 	// Build The word2vec cli tooling. All the instructions are there.
 	// Make the binary accessible. I put it under $GOPATH/bin
 	https://github.com/maxoodf/word2vec
