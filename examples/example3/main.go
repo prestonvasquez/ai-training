@@ -142,12 +142,12 @@ func testModel() error {
 
 	// -------------------------------------------------------------------------
 
-	var cheap [300]float32
+	var cheap [100]float32
 	if err := w2v.VectorOf("cheap", cheap[:]); err != nil {
 		return err
 	}
 
-	var inexpensive [300]float32
+	var inexpensive [100]float32
 	if err := w2v.VectorOf("inexpensive", inexpensive[:]); err != nil {
 		return err
 	}
@@ -159,12 +159,12 @@ func testModel() error {
 
 	// -------------------------------------------------------------------------
 
-	var bad [300]float32
+	var bad [100]float32
 	if err := w2v.VectorOf("bad", bad[:]); err != nil {
 		return err
 	}
 
-	var horrible [300]float32
+	var horrible [100]float32
 	if err := w2v.VectorOf("horrible", horrible[:]); err != nil {
 		return err
 	}
