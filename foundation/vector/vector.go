@@ -8,8 +8,8 @@ package vector
 
 import "math"
 
-// Embedding represents data that can be vectorized.
-type Embedding interface {
+// Data represents data that can be vectorized.
+type Data interface {
 	Vector() []float32
 }
 
@@ -18,24 +18,24 @@ type Embedding interface {
 // SimilarityResult represents the result of performaing a similarity check
 // between two embeddings.
 type SimilarityResult struct {
-	Target     Embedding
-	Record     Embedding
+	Target     Data
+	DataPoint  Data
 	Similarity float32
 	Percentage float32
 }
 
 // Similarity calculates the similarity between two vectors.
-func Similarity(target Embedding, records ...Embedding) []SimilarityResult {
-	results := make([]SimilarityResult, len(records))
+func Similarity(target Data, dataPoints ...Data) []SimilarityResult {
+	results := make([]SimilarityResult, len(dataPoints))
 
 	te := target.Vector()
 
-	for i, record := range records {
-		similarity := CosineSimilarity(te, record.Vector())
+	for i, dp := range dataPoints {
+		similarity := CosineSimilarity(te, dp.Vector())
 
 		results[i] = SimilarityResult{
 			Target:     target,
-			Record:     record,
+			DataPoint:  dp,
 			Similarity: similarity,
 			Percentage: similarity * 100,
 		}

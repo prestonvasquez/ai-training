@@ -18,13 +18,13 @@ import (
 
 	"vectors" refers to the numerical representation of those features.
 
-	Embeddings are not hand crafted like in this example. Here, we hand coded
-	the features and the feature vectors. To do this at scale, this needs to
-	bed automated. This is done during neural network training and you won't
-	know what they features are. But it all works.
+	Fields are not hand crafted like in this example. Here, we hand coded
+	the features and the values. To do this at scale, this needs to be
+	automated. This is done during neural network training and you won't
+	know what the features are. But it all works.
 */
 
-type embedding struct {
+type data struct {
 	Name      string
 	Authority float32 // These fields are called features.
 	Animal    float32
@@ -33,50 +33,50 @@ type embedding struct {
 	Gender    float32
 }
 
-// Vector can convert the specified embedding into a vector.
-func (emb embedding) Vector() []float32 {
+// Vector can convert the specified data into a vector.
+func (d data) Vector() []float32 {
 	return []float32{
-		emb.Authority,
-		emb.Animal,
-		emb.Human,
-		emb.Rich,
-		emb.Gender,
+		d.Authority,
+		d.Animal,
+		d.Human,
+		d.Rich,
+		d.Gender,
 	}
 }
 
 // String pretty prints an embedding to a vector representation.
-func (emb embedding) String() string {
-	return fmt.Sprintf("%f", emb.Vector())
+func (d data) String() string {
+	return fmt.Sprintf("%f", d.Vector())
 }
 
 // =============================================================================
 
 func main() {
 
-	// Apply the feature vectors to the hand crafted embeddings.
-	vectors := []vector.Embedding{
-		embedding{Name: "Horse   ", Authority: 0.0, Animal: 1.0, Human: 0.0, Rich: 0.0, Gender: +1.0},
-		embedding{Name: "Man     ", Authority: 0.0, Animal: 0.0, Human: 1.0, Rich: 0.0, Gender: -1.0},
-		embedding{Name: "Woman   ", Authority: 0.0, Animal: 0.0, Human: 1.0, Rich: 0.0, Gender: +1.0},
-		embedding{Name: "King    ", Authority: 1.0, Animal: 0.0, Human: 1.0, Rich: 1.0, Gender: -1.0},
-		embedding{Name: "Queen   ", Authority: 1.0, Animal: 0.0, Human: 1.0, Rich: 1.0, Gender: +1.0},
+	// Apply the feature dataPoints to the hand crafted embeddings.
+	dataPoints := []vector.Data{
+		data{Name: "Horse   ", Authority: 0.0, Animal: 1.0, Human: 0.0, Rich: 0.0, Gender: +1.0},
+		data{Name: "Man     ", Authority: 0.0, Animal: 0.0, Human: 1.0, Rich: 0.0, Gender: -1.0},
+		data{Name: "Woman   ", Authority: 0.0, Animal: 0.0, Human: 1.0, Rich: 0.0, Gender: +1.0},
+		data{Name: "King    ", Authority: 1.0, Animal: 0.0, Human: 1.0, Rich: 1.0, Gender: -1.0},
+		data{Name: "Queen   ", Authority: 1.0, Animal: 0.0, Human: 1.0, Rich: 1.0, Gender: +1.0},
 	}
 
 	// -------------------------------------------------------------------------
 
 	fmt.Print("\n")
-	for _, v := range vectors {
-		fmt.Printf("%s: %v\n", v.(embedding).Name, v)
+	for _, v := range dataPoints {
+		fmt.Printf("%s: %v\n", v.(data).Name, v)
 	}
 	fmt.Print("\n")
 
-	for _, target := range vectors {
-		results := vector.Similarity(target, vectors...)
+	for _, target := range dataPoints {
+		results := vector.Similarity(target, dataPoints...)
 
 		for _, result := range results {
 			fmt.Printf("%s -> %s: %.3f%% similar\n",
-				result.Target.(embedding).Name,
-				result.Record.(embedding).Name,
+				result.Target.(data).Name,
+				result.DataPoint.(data).Name,
 				result.Percentage)
 		}
 		fmt.Print("\n")
@@ -86,9 +86,9 @@ func main() {
 
 	// King - Man + Woman ~= Queen
 
-	kingSubMan := vector.Sub(vectors[3].Vector(), vectors[1].Vector())
-	plusWoman := vector.Add(kingSubMan, vectors[2].Vector())
+	kingSubMan := vector.Sub(dataPoints[3].Vector(), dataPoints[1].Vector())
+	plusWoman := vector.Add(kingSubMan, dataPoints[2].Vector())
 
-	result := vector.CosineSimilarity(plusWoman, vectors[4].Vector())
+	result := vector.CosineSimilarity(plusWoman, dataPoints[4].Vector())
 	fmt.Printf("King - Man + Woman ~= Queen similarity: %.3f%%\n", result*100)
 }
