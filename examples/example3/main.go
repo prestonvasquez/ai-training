@@ -27,13 +27,13 @@ func main() {
 }
 
 func run() error {
-	// if err := cleanData(); err != nil {
-	// 	return fmt.Errorf("cleanData: %w", err)
-	// }
+	if err := cleanData(); err != nil {
+		return fmt.Errorf("cleanData: %w", err)
+	}
 
-	// if err := trainModel(); err != nil {
-	// 	return fmt.Errorf("trainModel: %w", err)
-	// }
+	if err := trainModel(); err != nil {
+		return fmt.Errorf("trainModel: %w", err)
+	}
 
 	if err := testModel(); err != nil {
 		return fmt.Errorf("trainModel: %w", err)

@@ -9,8 +9,6 @@
 package word2vec
 
 /*
-#cgo CFLAGS: -Ilibw2v/lib
-#cgo LDFLAGS: -L libw2v/lib -lw2v
 #include <stdlib.h>
 #include "libw2v/include/w2v.h"
 */
