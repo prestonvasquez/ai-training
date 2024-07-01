@@ -10,6 +10,7 @@ import (
 )
 
 /*
+	https://www.ibm.com/topics/neural-networks
 	https://machinelearningmastery.com/what-are-word-embeddings/
 	https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/
 

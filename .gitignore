@@ -3,7 +3,7 @@
 #
 
 # Data files
-reviews_Cell_Phones_and_Accessories_5.json
+data/
 
 # Binaries for programs and plugins
 *.exe

@@ -13,7 +13,7 @@ example2:
 	go run examples/example2/main.go
 
 example3:
-	go run examples/example3/main.go
+	go run -exec "env DYLD_LIBRARY_PATH=/usr/local/lib" examples/example3/main.go
 
 # ==============================================================================
 # Install dependencies

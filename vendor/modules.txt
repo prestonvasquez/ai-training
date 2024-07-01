@@ -1,3 +1,5 @@
+# github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+## explicit
 # github.com/dlclark/regexp2 v1.10.0
 ## explicit; go 1.13
 github.com/dlclark/regexp2
@@ -8,6 +10,8 @@ github.com/google/uuid
 # github.com/pkoukk/tiktoken-go v0.1.6
 ## explicit; go 1.19
 github.com/pkoukk/tiktoken-go
+# github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+## explicit
 # github.com/tmc/langchaingo v0.1.12
 ## explicit; go 1.22.0
 github.com/tmc/langchaingo/callbacks
