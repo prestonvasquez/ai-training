@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
+	"runtime"
 
 	"github.com/ardanlabs/vector/foundation/stopwords"
 	"github.com/ardanlabs/vector/foundation/vector"
@@ -16,10 +16,6 @@ import (
 /*
 	https://www.youtube.com/watch?v=Q2NtCcqmIww&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=42
 	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
-
-	// Build The word2vec cli tooling. All the instructions are there.
-	// Make the binary accessible. I put it under $GOPATH/bin
-	https://github.com/maxoodf/word2vec
 */
 
 var fileName = "reviews_Cell_Phones_and_Accessories_5"
@@ -31,13 +27,13 @@ func main() {
 }
 
 func run() error {
-	if err := cleanData(); err != nil {
-		return fmt.Errorf("cleanData: %w", err)
-	}
+	// if err := cleanData(); err != nil {
+	// 	return fmt.Errorf("cleanData: %w", err)
+	// }
 
-	if err := trainModel(); err != nil {
-		return fmt.Errorf("trainModel: %w", err)
-	}
+	// if err := trainModel(); err != nil {
+	// 	return fmt.Errorf("trainModel: %w", err)
+	// }
 
 	if err := testModel(); err != nil {
 		return fmt.Errorf("trainModel: %w", err)
@@ -95,12 +91,32 @@ func trainModel() error {
 	fmt.Println("Training Model ...")
 	fmt.Print("\n")
 
-	arg := []string{"-v", "-w", "5", "-m", "2", "-t", "12", "-f", "zarf/data/" + fileName + ".txt", "-o", "zarf/data/" + fileName + ".w2v"}
+	config := word2vec.Config{
+		Corpus: word2vec.ConfigCorpus{
+			Dataset:   "zarf/data/" + fileName + ".txt",
+			Tokenizer: " \n,.-!?:;/\"#$%&'()*+<=>@[]\\^_`{|}~\t\v\f\r",
+			Sequencer: ".\n?!",
+		},
+		Vector: word2vec.ConfigWordVector{
+			Vector:    100,
+			Window:    5,
+			Threshold: 0.001,
+			Frequency: 2,
+		},
+		Learning: word2vec.ConfigLearning{
+			Epoch: 10,
+			Rate:  0.05,
+		},
+		UseCBOW:              true,
+		UseNegativeSampling:  true,
+		SizeNegativeSampling: 5,
+		Threads:              runtime.GOMAXPROCS(0),
+		Verbose:              true,
+		Output:               "zarf/data/" + fileName + ".w2v",
+	}
 
-	cmd := exec.Command("w2v_trainer", arg...)
-	cmd.Stdout = os.Stdout
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("exec: %w", err)
+	if err := word2vec.Train(config); err != nil {
+		return fmt.Errorf("train: %w", err)
 	}
 
 	fmt.Print("\n")
@@ -138,7 +154,24 @@ func testModel() error {
 
 	v := vector.CosineSimilarity(cheap[:], inexpensive[:])
 
-	fmt.Println("The similarity between the word \"cheap\" and \"inexpensive\"")
+	fmt.Println("The cosine similarity between the word \"cheap\" and \"inexpensive\"")
+	fmt.Printf("%.3f%%\n", v*100)
+
+	// -------------------------------------------------------------------------
+
+	var bad [300]float32
+	if err := w2v.VectorOf("bad", bad[:]); err != nil {
+		return err
+	}
+
+	var horrible [300]float32
+	if err := w2v.VectorOf("horrible", horrible[:]); err != nil {
+		return err
+	}
+
+	v = vector.CosineSimilarity(bad[:], horrible[:])
+
+	fmt.Println("The cosine similarity between the word \"bad\" and \"horrible\"")
 	fmt.Printf("%.3f%%\n", v*100)
 
 	return nil
