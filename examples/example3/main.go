@@ -27,13 +27,13 @@ func main() {
 }
 
 func run() error {
-	// if err := cleanData(); err != nil {
-	// 	return fmt.Errorf("cleanData: %w", err)
-	// }
+	if err := cleanData(); err != nil {
+		return fmt.Errorf("cleanData: %w", err)
+	}
 
-	// if err := trainModel(); err != nil {
-	// 	return fmt.Errorf("trainModel: %w", err)
-	// }
+	if err := trainModel(); err != nil {
+		return fmt.Errorf("trainModel: %w", err)
+	}
 
 	if err := testModel(); err != nil {
 		return fmt.Errorf("trainModel: %w", err)
@@ -100,8 +100,8 @@ func trainModel() error {
 		Vector: word2vec.ConfigWordVector{
 			Vector:    300,
 			Window:    10,
-			Threshold: 0.001,
-			Frequency: 2,
+			Threshold: 1e-3,
+			Frequency: 5,
 		},
 		Learning: word2vec.ConfigLearning{
 			Epoch: 10,
