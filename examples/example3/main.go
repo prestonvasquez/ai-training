@@ -27,13 +27,13 @@ func main() {
 }
 
 func run() error {
-	if err := cleanData(); err != nil {
-		return fmt.Errorf("cleanData: %w", err)
-	}
+	// if err := cleanData(); err != nil {
+	// 	return fmt.Errorf("cleanData: %w", err)
+	// }
 
-	if err := trainModel(); err != nil {
-		return fmt.Errorf("trainModel: %w", err)
-	}
+	// if err := trainModel(); err != nil {
+	// 	return fmt.Errorf("trainModel: %w", err)
+	// }
 
 	if err := testModel(); err != nil {
 		return fmt.Errorf("trainModel: %w", err)
@@ -142,37 +142,23 @@ func testModel() error {
 
 	// -------------------------------------------------------------------------
 
-	var terrible [300]float32
-	if err := w2v.VectorOf("terrible", terrible[:]); err != nil {
-		return err
+	words := []string{"terrible", "horrible", "price", "battery", "great", "nice"}
+
+	for i := 0; i < len(words); i = i + 2 {
+		var word1 [300]float32
+		if err := w2v.VectorOf(words[i], word1[:]); err != nil {
+			return err
+		}
+
+		var word2 [300]float32
+		if err := w2v.VectorOf(words[i+1], word2[:]); err != nil {
+			return err
+		}
+
+		v := vector.CosineSimilarity(word1[:], word2[:])
+
+		fmt.Printf("The cosine similarity between the word %q and %q: %.3f%%\n", words[i], words[i+1], v*100)
 	}
-
-	var horrible [300]float32
-	if err := w2v.VectorOf("horrible", horrible[:]); err != nil {
-		return err
-	}
-
-	v := vector.CosineSimilarity(terrible[:], horrible[:])
-
-	fmt.Println("The cosine similarity between the word \"terrible\" and \"horrible\"")
-	fmt.Printf("%.3f%%\n", v*100)
-
-	// -------------------------------------------------------------------------
-
-	var price [300]float32
-	if err := w2v.VectorOf("price", price[:]); err != nil {
-		return err
-	}
-
-	var battery [300]float32
-	if err := w2v.VectorOf("battery", battery[:]); err != nil {
-		return err
-	}
-
-	v = vector.CosineSimilarity(price[:], battery[:])
-
-	fmt.Println("The cosine similarity between the word \"price\" and \"battery\"")
-	fmt.Printf("%.3f%%\n", v*100)
 
 	return nil
 }
