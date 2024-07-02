@@ -56,6 +56,10 @@ func convertPDFtoTxt() error {
 }
 
 func findChunks() error {
+
+	// This code attempts to find the block of text for each section from
+	// the outline in the book. The sections are down below.
+
 	inputB, err := os.ReadFile("zarf/data/book.txt")
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
@@ -87,6 +91,10 @@ func findChunks() error {
 
 	// -------------------------------------------------------------------------
 
+	// This code takes those chunks we found and cleans them up. It won't
+	// save a chunk larger than 500 words. If we have a chunk that is larger,
+	// then it's broken up into 250 word sections.
+
 	nonAlphanumericRegex := regexp.MustCompile(`[^\p{L}\p{N} ]+`)
 
 	output, err := os.Create("zarf/data/book.chunks")
@@ -96,12 +104,41 @@ func findChunks() error {
 	defer output.Close()
 
 	for _, chunk := range chunks {
+
+		// Clean up the chunk and replace \n with spaces.
 		chunk = strings.ReplaceAll(chunk, "\n", "CRLF")
 		chunk = nonAlphanumericRegex.ReplaceAllString(chunk, "")
 		chunk = strings.ReplaceAll(chunk, "CRLF", " ")
 
-		output.WriteString(chunk)
-		output.WriteString("\n")
+		// Figure out how many words we have.
+		words := strings.Fields(chunk)
+
+		// We have less than or exactly 500 words.
+		if len(words) <= 500 {
+			output.WriteString(chunk)
+			output.WriteString("\n")
+			continue
+		}
+
+		// The chunk is pretty large, so switch to 250 word chunks.
+		const boundary = 250
+
+		var idx int
+
+		for {
+			// We have the last section of words.
+			if len(words[idx:]) <= boundary {
+				output.WriteString(strings.Join(words[idx:], " "))
+				output.WriteString("\n")
+				break
+			}
+
+			// This is a 250 chunk of words.
+			output.WriteString(strings.Join(words[idx:idx+boundary], " "))
+			output.WriteString("\n")
+
+			idx = idx + boundary
+		}
 	}
 
 	return nil
