@@ -21,8 +21,15 @@ example3:
 #   https://github.com/ollama/ollama/tree/main
 #   https://github.com/tmc/langchaingo/
 
-ollama:
-	ollama serve
+docker:
+	docker pull mongodb/mongodb-atlas-local
+	docker pull ollama/ollama
+
+dev-up:
+	docker-compose -f zarf/docker/compose.yaml up
+
+dev-down:
+	docker-compose -f zarf/docker/compose.yaml down
 
 # ==============================================================================
 # Modules support

@@ -1,0 +1,26 @@
+version: "3.1"
+
+services:
+  mongodb:
+    image: mongodb/mongodb-atlas-local:latest
+    container_name: mongo-atlas
+    privileged: true
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=ardan
+      - MONGODB_INITDB_ROOT_PASSWORD=ardan
+    ports:
+      - 27017-27019:27017-27019
+    volumes:
+      - ./db_data/:/data/
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama:/root/.ollama
+    tty: true
+
+volumes:
+  ollama: {}
