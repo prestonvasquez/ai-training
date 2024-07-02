@@ -16,9 +16,10 @@ import (
 /*
 	https://www.youtube.com/watch?v=Q2NtCcqmIww&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=42
 	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
-*/
 
-var fileName = "reviews_Cell_Phones_and_Accessories_5"
+	NOTE: You must run `make download-data` to get the data file need to run
+	      this example.
+*/
 
 func main() {
 	if err := run(); err != nil {
@@ -47,12 +48,12 @@ func cleanData() error {
 		ReviewText string
 	}
 
-	input, err := os.Open("zarf/data/" + fileName + ".json")
+	input, err := os.Open("zarf/data/example3.json")
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
 
-	output, err := os.Create("zarf/data/" + fileName + ".txt")
+	output, err := os.Create("zarf/data/example3.words")
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
@@ -93,7 +94,7 @@ func trainModel() error {
 
 	config := word2vec.Config{
 		Corpus: word2vec.ConfigCorpus{
-			InputFile: "zarf/data/" + fileName + ".txt",
+			InputFile: "zarf/data/example3.words",
 			Tokenizer: " \n,.-!?:;/\"#$%&'()*+<=>@[]\\^_`{|}~\t\v\f\r",
 			Sequencer: ".\n?!",
 		},
@@ -114,7 +115,7 @@ func trainModel() error {
 		SizeNegativeSampling:   5,
 		Threads:                runtime.GOMAXPROCS(0),
 		Verbose:                true,
-		Output:                 "zarf/data/" + fileName + ".w2v",
+		Output:                 "zarf/data/example3.model",
 	}
 
 	if err := word2vec.Train(config); err != nil {
@@ -130,7 +131,7 @@ func testModel() error {
 	fmt.Println("Testing Model ...")
 	fmt.Print("\n")
 
-	w2v, err := word2vec.Load("zarf/data/"+fileName+".w2v", 300)
+	w2v, err := word2vec.Load("zarf/data/example3.model", 300)
 	if err != nil {
 		return err
 	}

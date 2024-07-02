@@ -31,6 +31,11 @@ dev-up:
 dev-down:
 	docker-compose -f zarf/docker/compose.yaml down
 
+download-data:
+	curl -o zarf/data/example3.gz -X GET http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz \
+	&& gunzip -k -d zarf/data/example3.gz \
+	&& mv zarf/data/example3 zarf/data/example3.json
+
 # ==============================================================================
 # Modules support
 
