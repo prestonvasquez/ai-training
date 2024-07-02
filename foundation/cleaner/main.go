@@ -1,3 +1,9 @@
+// This program takes the Ultimate Go Notebook in PDF form and creates chunks
+// from the different sections in the book. If these chunks are over 500 words,
+// then it breaks those up into 250 word chunks. Each chunk exists on it's own
+// line and vectorized.
+// NOTE:
+// More needs to be done. Code examples are flattened out as an example.
 package main
 
 import (
@@ -19,9 +25,9 @@ func main() {
 }
 
 func run() error {
-	// if err := convertPDFtoTxt(); err != nil {
-	// 	return fmt.Errorf("convertPDFtoTxt: %w", err)
-	// }
+	if err := convertPDFtoTxt(); err != nil {
+		return fmt.Errorf("convertPDFtoTxt: %w", err)
+	}
 
 	if err := findChunks(); err != nil {
 		return fmt.Errorf("convertPDFtoTxt: %w", err)
