@@ -39,6 +39,9 @@ download-data:
 	&& gunzip -k -d zarf/data/example3.gz \
 	&& mv zarf/data/example3 zarf/data/example3.json
 
+clean-data:
+	go run foundation/cleaner/main.go
+
 # ==============================================================================
 # Modules support
 
