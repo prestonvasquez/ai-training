@@ -3,7 +3,7 @@
 #
 
 # Data files
-data/
+zarf/data/example3*
 db_data/
 
 # Binaries for programs and plugins

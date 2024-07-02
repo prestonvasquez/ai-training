@@ -52,11 +52,13 @@ func cleanData() error {
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
+	defer input.Close()
 
 	output, err := os.Create("zarf/data/example3.words")
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
+	defer output.Close()
 
 	var counter int
 

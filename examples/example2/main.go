@@ -16,6 +16,8 @@ import (
 
 	The position of a data point in the learned vector space is referred to as
 	its	embedding.
+
+	NOTE: You must run `make dev-up` to run this example.
 */
 
 type data struct {
