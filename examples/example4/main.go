@@ -1,25 +1,20 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
-	"os"
+	"time"
 
-	"github.com/tmc/langchaingo/llms/ollama"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-/*
-	Builder Process
-	TEXT -> 400 Word Chunks -> Vectorize -> Store in MongoDB With Metadata
-
-	Chat Process
-	Question -> Vectorize -> Query MongoDB -> Pass top 5 Chunks to Model with
-	                                          question
-
-	NOTE: You must run `make dev-up` to run this example.
-*/
+type document struct {
+	Text             string
+	VectorEmbeddings []float64
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -28,45 +23,44 @@ func main() {
 }
 
 func run() error {
-	if err := vectorize(); err != nil {
-		return fmt.Errorf("vectorize: %w", err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
-	return nil
-}
+	auth := options.Client().SetAuth(options.Credential{
+		Username: "ardan",
+		Password: "ardan",
+	})
 
-func vectorize() error {
-	llm, err := ollama.New(ollama.WithModel("mxbai-embed-large"))
+	uri := options.Client().ApplyURI("mongodb://localhost:27017")
+
+	client, err := mongo.Connect(ctx, auth, uri)
 	if err != nil {
-		return fmt.Errorf("ollama: %w", err)
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		return fmt.Errorf("ping: %w", err)
 	}
 
-	input, err := os.Open("zarf/data/book.chunks")
+	fmt.Println("Connected to MongoDB")
+
+	col := client.Database("example4").Collection("book")
+
+	d1 := document{
+		Text:             "this is text 1",
+		VectorEmbeddings: []float64{1.0, 2.0, 3.0, 4.0},
+	}
+
+	ctx1, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := col.InsertOne(ctx1, d1)
 	if err != nil {
-		return fmt.Errorf("open file: %w", err)
-	}
-	defer input.Close()
-
-	var counter int
-
-	fmt.Print("\033[s")
-
-	scanner := bufio.NewScanner(input)
-	for scanner.Scan() {
-		counter++
-
-		v := scanner.Text()
-
-		fmt.Print("\033[u\033[K")
-		fmt.Printf("Vectorizing Data: %d of 341", counter)
-
-		_, err := llm.CreateEmbedding(context.Background(), []string{v})
-		if err != nil {
-			return fmt.Errorf("create embedding: %w", err)
-		}
+		return fmt.Errorf("insert: %w", err)
 	}
 
-	fmt.Print("\n")
+	fmt.Println(res)
 
 	return nil
 }

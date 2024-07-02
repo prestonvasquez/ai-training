@@ -18,6 +18,9 @@ example3:
 example4:
 	go run examples/example4/main.go
 
+example5:
+	go run examples/example5/main.go
+
 # ==============================================================================
 # Install dependencies
 #   https://ollama.com/
@@ -40,7 +43,7 @@ download-data:
 	&& mv zarf/data/example3 zarf/data/example3.json
 
 clean-data:
-	go run foundation/cleaner/main.go
+	go run cmd/cleaner/main.go
 
 # ==============================================================================
 # Modules support
