@@ -27,6 +27,9 @@ example5:
 #   https://github.com/ollama/ollama/tree/main
 #   https://github.com/tmc/langchaingo/
 
+install:
+	brew install mongosh
+
 docker:
 	docker pull mongodb/mongodb-atlas-local
 	docker pull ollama/ollama
@@ -44,6 +47,9 @@ download-data:
 
 clean-data:
 	go run cmd/cleaner/main.go
+
+mongo:
+	mongosh -u ardan -p ardan mongodb://localhost:27017
 
 # ==============================================================================
 # Modules support
