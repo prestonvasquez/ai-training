@@ -114,28 +114,22 @@ func runCreateIndexCmd(ctx context.Context, col *mongo.Collection, vectorIndexNa
 	*/
 
 	idx := bson.D{
-		{
-			Key:   "createSearchIndexes",
-			Value: col.Name(),
-		},
-		{
-			Key: "indexes",
-			Value: []bson.D{
-				{
-					{Key: "name", Value: vectorIndexName},
-					{Key: "type", Value: "vectorSearch"},
-					{Key: "definition", Value: bson.D{
-						{Key: "fields", Value: []bson.D{
-							{
-								{Key: "type", Value: "vector"},
-								{Key: "numDimensions", Value: settings.NumDimensions},
-								{Key: "path", Value: settings.Path},
-								{Key: "similarity", Value: settings.Similarity},
-							},
-						}},
+		{Key: "createSearchIndexes", Value: col.Name()},
+		{Key: "indexes", Value: []bson.D{
+			{
+				{Key: "name", Value: vectorIndexName},
+				{Key: "type", Value: "vectorSearch"},
+				{Key: "definition", Value: bson.D{
+					{Key: "fields", Value: []bson.D{
+						{
+							{Key: "type", Value: "vector"},
+							{Key: "numDimensions", Value: settings.NumDimensions},
+							{Key: "path", Value: settings.Path},
+							{Key: "similarity", Value: settings.Similarity},
+						},
 					}},
-				},
-			},
+				}},
+			}},
 		},
 	}
 
