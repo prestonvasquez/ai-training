@@ -40,34 +40,32 @@ func run() error {
 
 	db := client.Database(dbName)
 
-	// col, err := mongodb.CreateCollection(ctx, db, collectionName)
-	// if err != nil {
-	// 	return fmt.Errorf("createCollection: %w", err)
-	// }
+	col, err := mongodb.CreateCollection(ctx, db, collectionName)
+	if err != nil {
+		return fmt.Errorf("createCollection: %w", err)
+	}
 
-	// fmt.Println("Created Collection")
+	fmt.Println("Created Collection")
 
 	// -------------------------------------------------------------------------
 	// Create vector index
 
-	// const indexName = "vector_index"
+	const indexName = "vector_index"
 
-	// settings := mongodb.VectorIndexSettings{
-	// 	NumDimensions: 4,
-	// 	Path:          "embedding",
-	// 	Similarity:    "cosine",
-	// }
+	settings := mongodb.VectorIndexSettings{
+		NumDimensions: 4,
+		Path:          "embedding",
+		Similarity:    "cosine",
+	}
 
-	// if err := mongodb.CreateVectorIndex(ctx, col, indexName, settings); err != nil {
-	// 	return fmt.Errorf("createVectorIndex: %w", err)
-	// }
+	if err := mongodb.CreateVectorIndex(ctx, col, indexName, settings); err != nil {
+		return fmt.Errorf("createVectorIndex: %w", err)
+	}
 
-	// fmt.Println("Created Vector Index")
+	fmt.Println("Created Vector Index")
 
 	// -------------------------------------------------------------------------
 	// Store some documents with their embeddings.
-
-	col := db.Collection(collectionName)
 
 	if err := storeDocuments(ctx, col); err != nil {
 		return fmt.Errorf("storeDocuments: %w", err)
