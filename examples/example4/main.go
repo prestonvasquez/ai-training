@@ -22,7 +22,7 @@ func run() error {
 	// -------------------------------------------------------------------------
 	// Connect to mongo
 
-	client, err := mongodb.Connect(ctx, "mongodb://localhost:27017")
+	client, err := mongodb.Connect(ctx, "mongodb://localhost:27017", "ardan", "ardan")
 	if err != nil {
 		return fmt.Errorf("connectToMongo: %w", err)
 	}
@@ -31,12 +31,14 @@ func run() error {
 	fmt.Println("Connected to MongoDB")
 
 	// -------------------------------------------------------------------------
-	// Create collection
+	// Create database and collection
 
 	const dbName = "example4"
 	const collectionName = "book"
 
-	col, err := mongodb.CreateCollection(ctx, client, dbName, collectionName)
+	db := client.Database("book")
+
+	col, err := mongodb.CreateCollection(ctx, db, collectionName)
 	if err != nil {
 		return fmt.Errorf("createCollection: %w", err)
 	}

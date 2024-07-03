@@ -12,10 +12,10 @@ import (
 )
 
 // Connect attempts to connect to a mongo db instance.
-func Connect(ctx context.Context, host string) (*mongo.Client, error) {
+func Connect(ctx context.Context, host string, userName string, password string) (*mongo.Client, error) {
 	auth := options.Client().SetAuth(options.Credential{
-		Username: "ardan",
-		Password: "ardan",
+		Username: userName,
+		Password: password,
 	})
 
 	uri := options.Client().ApplyURI(host)
@@ -34,17 +34,13 @@ func Connect(ctx context.Context, host string) (*mongo.Client, error) {
 
 // CreateCollection will create the specified collection in the specified
 // database if it doesn't already exist.
-func CreateCollection(ctx context.Context, client *mongo.Client, dbName string, collectionName string) (*mongo.Collection, error) {
-	db := client.Database(dbName)
-
+func CreateCollection(ctx context.Context, db *mongo.Database, collectionName string) (*mongo.Collection, error) {
 	names, err := db.ListCollectionNames(ctx, bson.D{bson.E{Key: "name", Value: collectionName}})
 	if err != nil {
 		return nil, fmt.Errorf("list collections: %w", err)
 	}
 
 	if len(names) == 0 {
-		fmt.Println("created book collection")
-
 		if err := db.CreateCollection(ctx, collectionName); err != nil {
 			return nil, fmt.Errorf("create collections: %w", err)
 		}
