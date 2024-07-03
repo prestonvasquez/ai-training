@@ -5,8 +5,8 @@ go 1.22.4
 require (
 	code.sajari.com/docconv/v2 v2.0.0-pre.4
 	github.com/tmc/langchaingo v0.1.12
-	go.mongodb.org/mongo-driver v1.14.0
-	golang.org/x/text v0.15.0
+	go.mongodb.org/mongo-driver v1.16.0
+	golang.org/x/text v0.16.0
 )
 
 require (
@@ -15,7 +15,6 @@ require (
 	github.com/advancedlogic/GoOse v0.0.0-20191112112754-e742535969c1 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/araddon/dateparse v0.0.0-20200409225146-d820a6159ab1 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/fatih/set v0.2.1 // indirect
 	github.com/gigawattio/window v0.0.0-20180317192513-0f5467e35573 // indirect
@@ -26,12 +25,11 @@ require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/levigross/exp-html v0.0.0-20120902181939-8df60c69a8f5 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/otiai10/gosseract/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.6 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/richardlehane/mscfb v1.0.3 // indirect
 	github.com/richardlehane/msoleps v1.0.3 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect

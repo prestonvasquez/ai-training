@@ -51,7 +51,7 @@ func CreateCollection(ctx context.Context, db *mongo.Database, collectionName st
 
 // CreateVectorIndex creates a very specific vector index for our example.
 func CreateVectorIndex(ctx context.Context, col *mongo.Collection, vectorIndexName string, settings VectorIndexSettings) error {
-	indexes, err := lookupVectorIndex(ctx, col)
+	indexes, err := lookupVectorIndex(ctx, col, vectorIndexName)
 	if err != nil {
 		return fmt.Errorf("lookupVectorIndex: %w", err)
 	}
@@ -61,7 +61,7 @@ func CreateVectorIndex(ctx context.Context, col *mongo.Collection, vectorIndexNa
 			return fmt.Errorf("createVectorIndex: %w", err)
 		}
 
-		indexes, err = lookupVectorIndex(ctx, col)
+		indexes, err = lookupVectorIndex(ctx, col, vectorIndexName)
 		if err != nil {
 			return fmt.Errorf("lookupVectorIndex: %w", err)
 		}
@@ -76,13 +76,13 @@ func CreateVectorIndex(ctx context.Context, col *mongo.Collection, vectorIndexNa
 
 // =============================================================================
 
-func lookupVectorIndex(ctx context.Context, col *mongo.Collection) ([]Index, error) {
-	indexName := "vector_index"
+func lookupVectorIndex(ctx context.Context, col *mongo.Collection, vectorIndexName string) ([]Index, error) {
 	siv := col.SearchIndexes()
-	cur, err := siv.List(ctx, &options.SearchIndexesOptions{Name: &indexName})
+	cur, err := siv.List(ctx, &options.SearchIndexesOptions{Name: &vectorIndexName})
 	if err != nil {
 		return nil, fmt.Errorf("index: %w", err)
 	}
+	defer cur.Close(ctx)
 
 	var indexs []Index
 
