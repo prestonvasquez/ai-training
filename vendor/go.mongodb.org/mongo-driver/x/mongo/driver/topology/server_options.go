@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/internal/logger"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
@@ -18,7 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
-var defaultRegistry = bson.NewRegistryBuilder().Build()
+var defaultRegistry = bson.NewRegistry()
 
 type serverConfig struct {
 	clock                *session.ClusterClock
@@ -26,10 +25,10 @@ type serverConfig struct {
 	connectionOpts       []ConnectionOption
 	appname              string
 	heartbeatInterval    time.Duration
-	heartbeatTimeout     time.Duration
+	connectTimeout       time.Duration
 	serverMonitoringMode string
 	serverMonitor        *event.ServerMonitor
-	registry             *bsoncodec.Registry
+	registry             *bson.Registry
 	monitoringDisabled   bool
 	serverAPI            *driver.ServerAPIOptions
 	loadBalanced         bool
@@ -44,10 +43,10 @@ type serverConfig struct {
 	poolMaintainInterval time.Duration
 }
 
-func newServerConfig(opts ...ServerOption) *serverConfig {
+func newServerConfig(connectTimeout time.Duration, opts ...ServerOption) *serverConfig {
 	cfg := &serverConfig{
 		heartbeatInterval: 10 * time.Second,
-		heartbeatTimeout:  10 * time.Second,
+		connectTimeout:    connectTimeout,
 		registry:          defaultRegistry,
 	}
 
@@ -66,8 +65,8 @@ type ServerOption func(*serverConfig)
 
 // ServerAPIFromServerOptions will return the server API options if they have been functionally set on the ServerOption
 // slice.
-func ServerAPIFromServerOptions(opts []ServerOption) *driver.ServerAPIOptions {
-	return newServerConfig(opts...).serverAPI
+func ServerAPIFromServerOptions(connectTimeout time.Duration, opts []ServerOption) *driver.ServerAPIOptions {
+	return newServerConfig(connectTimeout, opts...).serverAPI
 }
 
 func withMonitoringDisabled(fn func(bool) bool) ServerOption {
@@ -101,14 +100,6 @@ func WithServerAppName(fn func(string) string) ServerOption {
 func WithHeartbeatInterval(fn func(time.Duration) time.Duration) ServerOption {
 	return func(cfg *serverConfig) {
 		cfg.heartbeatInterval = fn(cfg.heartbeatInterval)
-	}
-}
-
-// WithHeartbeatTimeout configures how long to wait for a heartbeat socket to
-// connection.
-func WithHeartbeatTimeout(fn func(time.Duration) time.Duration) ServerOption {
-	return func(cfg *serverConfig) {
-		cfg.heartbeatTimeout = fn(cfg.heartbeatTimeout)
 	}
 }
 
@@ -178,7 +169,7 @@ func WithClock(fn func(clock *session.ClusterClock) *session.ClusterClock) Serve
 
 // WithRegistry configures the registry for the server to use when creating
 // cursors.
-func WithRegistry(fn func(*bsoncodec.Registry) *bsoncodec.Registry) ServerOption {
+func WithRegistry(fn func(*bson.Registry) *bson.Registry) ServerOption {
 	return func(cfg *serverConfig) {
 		cfg.registry = fn(cfg.registry)
 	}

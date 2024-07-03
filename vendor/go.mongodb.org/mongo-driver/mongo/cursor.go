@@ -7,6 +7,7 @@
 package mongo
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,8 +16,6 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsoncodec"
-	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
@@ -32,10 +31,10 @@ type Cursor struct {
 	Current bson.Raw
 
 	bc            batchCursor
-	batch         *bsoncore.DocumentSequence
+	batch         *bsoncore.Iterator
 	batchLength   int
 	bsonOpts      *options.BSONOptions
-	registry      *bsoncodec.Registry
+	registry      *bson.Registry
 	clientSession *session.Client
 
 	err error
@@ -44,7 +43,7 @@ type Cursor struct {
 func newCursor(
 	bc batchCursor,
 	bsonOpts *options.BSONOptions,
-	registry *bsoncodec.Registry,
+	registry *bson.Registry,
 ) (*Cursor, error) {
 	return newCursorWithSession(bc, bsonOpts, registry, nil)
 }
@@ -52,7 +51,7 @@ func newCursor(
 func newCursorWithSession(
 	bc batchCursor,
 	bsonOpts *options.BSONOptions,
-	registry *bsoncodec.Registry,
+	registry *bson.Registry,
 	clientSession *session.Client,
 ) (*Cursor, error) {
 	if registry == nil {
@@ -71,9 +70,10 @@ func newCursorWithSession(
 		c.closeImplicitSession()
 	}
 
-	// Initialize just the batchLength here so RemainingBatchLength will return an accurate result. The actual batch
-	// will be pulled up by the first Next/TryNext call.
-	c.batchLength = c.bc.Batch().DocumentCount()
+	// Initialize just the batchLength here so RemainingBatchLength will return an
+	// accurate result. The actual batch will be pulled up by the first
+	// Next/TryNext call.
+	c.batchLength = c.bc.Batch().Count()
 	return c, nil
 }
 
@@ -85,14 +85,16 @@ func newEmptyCursor() *Cursor {
 // bson.DefaultRegistry will be used.
 //
 // The documents parameter must be a slice of documents. The slice may be nil or empty, but all elements must be non-nil.
-func NewCursorFromDocuments(documents []interface{}, err error, registry *bsoncodec.Registry) (*Cursor, error) {
+func NewCursorFromDocuments(documents []interface{}, preloadedErr error, registry *bson.Registry) (*Cursor, error) {
 	if registry == nil {
 		registry = bson.DefaultRegistry
 	}
 
-	// Convert documents slice to a sequence-style byte array.
-	var docsBytes []byte
-	for _, doc := range documents {
+	buf := new(bytes.Buffer)
+	enc := new(bson.Encoder)
+
+	values := make([]bsoncore.Value, len(documents))
+	for i, doc := range documents {
 		switch t := doc.(type) {
 		case nil:
 			return nil, ErrNilDocument
@@ -100,23 +102,37 @@ func NewCursorFromDocuments(documents []interface{}, err error, registry *bsonco
 			// Slight optimization so we'll just use MarshalBSON and not go through the codec machinery.
 			doc = bson.Raw(t)
 		}
-		var marshalErr error
-		docsBytes, marshalErr = bson.MarshalAppendWithRegistry(registry, docsBytes, doc)
-		if marshalErr != nil {
-			return nil, marshalErr
+
+		vw := bson.NewValueWriter(buf)
+		enc.Reset(vw)
+		enc.SetRegistry(registry)
+
+		if err := enc.Encode(doc); err != nil {
+			return nil, err
 		}
+
+		dup := make([]byte, len(buf.Bytes()))
+		copy(dup, buf.Bytes())
+
+		values[i] = bsoncore.Value{
+			Type: bsoncore.TypeEmbeddedDocument,
+			Data: dup,
+		}
+
+		buf.Reset()
 	}
 
 	c := &Cursor{
-		bc:       driver.NewBatchCursorFromDocuments(docsBytes),
+		bc:       driver.NewBatchCursorFromList(bsoncore.BuildArray(nil, values...)),
 		registry: registry,
-		err:      err,
+		err:      preloadedErr,
 	}
 
 	// Initialize batch and batchLength here. The underlying batch cursor will be preloaded with the
 	// provided contents, and thus already has a batch before calls to Next/TryNext.
 	c.batch = c.bc.Batch()
-	c.batchLength = c.bc.Batch().DocumentCount()
+	c.batchLength = c.bc.Batch().Count()
+
 	return c, nil
 }
 
@@ -159,12 +175,12 @@ func (c *Cursor) next(ctx context.Context, nonBlocking bool) bool {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	doc, err := c.batch.Next()
+	val, err := c.batch.Next()
 	switch {
 	case err == nil:
 		// Consume the next document in the current batch.
 		c.batchLength--
-		c.Current = bson.Raw(doc)
+		c.Current = bson.Raw(val.Data)
 		return true
 	case errors.Is(err, io.EOF): // Need to do a getMore
 	default:
@@ -202,12 +218,12 @@ func (c *Cursor) next(ctx context.Context, nonBlocking bool) bool {
 
 		// Use the new batch to update the batch and batchLength fields. Consume the first document in the batch.
 		c.batch = c.bc.Batch()
-		c.batchLength = c.batch.DocumentCount()
-		doc, err = c.batch.Next()
+		c.batchLength = c.batch.Count()
+		val, err = c.batch.Next()
 		switch {
 		case err == nil:
 			c.batchLength--
-			c.Current = bson.Raw(doc)
+			c.Current = bson.Raw(val.Data)
 			return true
 		case errors.Is(err, io.EOF): // Empty batch so we continue
 		default:
@@ -220,12 +236,9 @@ func (c *Cursor) next(ctx context.Context, nonBlocking bool) bool {
 func getDecoder(
 	data []byte,
 	opts *options.BSONOptions,
-	reg *bsoncodec.Registry,
-) (*bson.Decoder, error) {
-	dec, err := bson.NewDecoder(bsonrw.NewBSONDocumentReader(data))
-	if err != nil {
-		return nil, err
-	}
+	reg *bson.Registry,
+) *bson.Decoder {
+	dec := bson.NewDecoder(bson.NewValueReader(data))
 
 	if opts != nil {
 		if opts.AllowTruncatingDoubles {
@@ -255,22 +268,16 @@ func getDecoder(
 	}
 
 	if reg != nil {
-		// TODO:(GODRIVER-2719): Remove error handling.
-		if err := dec.SetRegistry(reg); err != nil {
-			return nil, err
-		}
+		dec.SetRegistry(reg)
 	}
 
-	return dec, nil
+	return dec
 }
 
 // Decode will unmarshal the current document into val and return any errors from the unmarshalling process without any
 // modification. If val is nil or is a typed nil, an error will be returned.
 func (c *Cursor) Decode(val interface{}) error {
-	dec, err := getDecoder(c.Current, c.bsonOpts, c.registry)
-	if err != nil {
-		return fmt.Errorf("error configuring BSON decoder: %w", err)
-	}
+	dec := getDecoder(c.Current, c.bsonOpts, c.registry)
 
 	return dec.Decode(val)
 }
@@ -344,7 +351,7 @@ func (c *Cursor) RemainingBatchLength() int {
 
 // addFromBatch adds all documents from batch to sliceVal starting at the given index. It returns the new slice value,
 // the next empty index in the slice, and an error if one occurs.
-func (c *Cursor) addFromBatch(sliceVal reflect.Value, elemType reflect.Type, batch *bsoncore.DocumentSequence,
+func (c *Cursor) addFromBatch(sliceVal reflect.Value, elemType reflect.Type, batch *bsoncore.Iterator,
 	index int) (reflect.Value, int, error) {
 
 	docs, err := batch.Documents()
@@ -361,10 +368,7 @@ func (c *Cursor) addFromBatch(sliceVal reflect.Value, elemType reflect.Type, bat
 		}
 
 		currElem := sliceVal.Index(index).Addr().Interface()
-		dec, err := getDecoder(doc, c.bsonOpts, c.registry)
-		if err != nil {
-			return sliceVal, index, fmt.Errorf("error configuring BSON decoder: %w", err)
-		}
+		dec := getDecoder(doc, c.bsonOpts, c.registry)
 		err = dec.Decode(currElem)
 		if err != nil {
 			return sliceVal, index, err
@@ -390,14 +394,14 @@ func (c *Cursor) SetBatchSize(batchSize int32) {
 	c.bc.SetBatchSize(batchSize)
 }
 
-// SetMaxTime will set the maximum amount of time the server will allow the
+// SetMaxAwaitTime will set the maximum amount of time the server will allow the
 // operations to execute. The server will error if this field is set but the
 // cursor is not configured with awaitData=true.
 //
 // The time.Duration value passed by this setter will be converted and rounded
 // down to the nearest millisecond.
-func (c *Cursor) SetMaxTime(dur time.Duration) {
-	c.bc.SetMaxTime(dur)
+func (c *Cursor) SetMaxAwaitTime(dur time.Duration) {
+	c.bc.SetMaxAwaitTime(dur)
 }
 
 // SetComment will set a user-configurable comment that can be used to identify

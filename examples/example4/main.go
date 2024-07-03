@@ -182,7 +182,7 @@ func queryDocuments(ctx context.Context, col *mongo.Collection) error {
 	}
 	cur.Close(ctx)
 
-	fmt.Println(results)
+	fmt.Println("RESULT:", results)
 
 	return nil
 }

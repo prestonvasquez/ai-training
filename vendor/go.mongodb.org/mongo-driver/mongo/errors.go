@@ -36,6 +36,9 @@ var ErrNilValue = errors.New("value is nil")
 // ErrEmptySlice is returned when an empty slice is passed to a CRUD method that requires a non-empty slice.
 var ErrEmptySlice = errors.New("must provide at least one element in input slice")
 
+// ErrNotSlice is returned when a type other than slice is passed to InsertMany.
+var ErrNotSlice = errors.New("must provide a non-empty slice")
+
 // ErrMapForOrderedArgument is returned when a map with multiple keys is passed to a CRUD method for an ordered parameter
 type ErrMapForOrderedArgument struct {
 	ParamName string
@@ -102,7 +105,8 @@ func replaceErrors(err error) error {
 	return err
 }
 
-// IsDuplicateKeyError returns true if err is a duplicate key error.
+// IsDuplicateKeyError returns true if err is a duplicate key error. For BulkWriteExceptions,
+// IsDuplicateKeyError returns true if at least one of the errors is a duplicate key error.
 func IsDuplicateKeyError(err error) bool {
 	if se := ServerError(nil); errors.As(err, &se) {
 		return se.HasErrorCode(11000) || // Duplicate key error.
@@ -120,7 +124,6 @@ func IsDuplicateKeyError(err error) bool {
 var timeoutErrs = [...]error{
 	context.DeadlineExceeded,
 	driver.ErrDeadlineWouldBeExceeded,
-	topology.ErrServerSelectionTimeout,
 }
 
 // IsTimeout returns true if err was caused by a timeout. For error chains,
@@ -281,11 +284,9 @@ func (e CommandError) HasErrorCode(code int) bool {
 
 // HasErrorLabel returns true if the error contains the specified label.
 func (e CommandError) HasErrorLabel(label string) bool {
-	if e.Labels != nil {
-		for _, l := range e.Labels {
-			if l == label {
-				return true
-			}
+	for _, l := range e.Labels {
+		if l == label {
+			return true
 		}
 	}
 	return false
@@ -455,11 +456,9 @@ func (mwe WriteException) HasErrorCode(code int) bool {
 
 // HasErrorLabel returns true if the error contains the specified label.
 func (mwe WriteException) HasErrorLabel(label string) bool {
-	if mwe.Labels != nil {
-		for _, l := range mwe.Labels {
-			if l == label {
-				return true
-			}
+	for _, l := range mwe.Labels {
+		if l == label {
+			return true
 		}
 	}
 	return false
@@ -569,11 +568,9 @@ func (bwe BulkWriteException) HasErrorCode(code int) bool {
 
 // HasErrorLabel returns true if the error contains the specified label.
 func (bwe BulkWriteException) HasErrorLabel(label string) bool {
-	if bwe.Labels != nil {
-		for _, l := range bwe.Labels {
-			if l == label {
-				return true
-			}
+	for _, l := range bwe.Labels {
+		if l == label {
+			return true
 		}
 	}
 	return false

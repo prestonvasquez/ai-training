@@ -32,21 +32,14 @@ type AggregateOptions struct {
 	// default value is nil, which means the default collation of the collection will be used.
 	Collation *Collation
 
-	// The maximum amount of time that the query can run on the server. The default value is nil, meaning that there
-	// is no time limit for query execution.
-	//
-	// NOTE(benjirewis): MaxTime will be deprecated in a future release. The more general Timeout option may be used
-	// in its place to control the amount of time that a single operation can run before returning an error. MaxTime
-	// is ignored if Timeout is set on the client.
-	MaxTime *time.Duration
-
 	// The maximum amount of time that the server should wait for new documents to satisfy a tailable cursor query.
 	// This option is only valid for MongoDB versions >= 3.2 and is ignored for previous server versions.
 	MaxAwaitTime *time.Duration
 
-	// A string that will be included in server logs, profiling logs, and currentOp queries to help trace the operation.
-	// The default is nil, which means that no comment will be included in the logs.
-	Comment *string
+	// A string or document that will be included in server logs, profiling logs,
+	// and currentOp queries to help trace the operation. The default is nil,
+	// which means that no comment will be included in the logs.
+	Comment interface{}
 
 	// The index to use for the aggregation. This should either be the index name as a string or the index specification
 	// as a document. The hint does not apply to $lookup and $graphLookup aggregation stages. The driver will return an
@@ -94,16 +87,6 @@ func (ao *AggregateOptions) SetCollation(c *Collation) *AggregateOptions {
 	return ao
 }
 
-// SetMaxTime sets the value for the MaxTime field.
-//
-// NOTE(benjirewis): MaxTime will be deprecated in a future release. The more general Timeout
-// option may be used in its place to control the amount of time that a single operation can
-// run before returning an error. MaxTime is ignored if Timeout is set on the client.
-func (ao *AggregateOptions) SetMaxTime(d time.Duration) *AggregateOptions {
-	ao.MaxTime = &d
-	return ao
-}
-
 // SetMaxAwaitTime sets the value for the MaxAwaitTime field.
 func (ao *AggregateOptions) SetMaxAwaitTime(d time.Duration) *AggregateOptions {
 	ao.MaxAwaitTime = &d
@@ -111,8 +94,8 @@ func (ao *AggregateOptions) SetMaxAwaitTime(d time.Duration) *AggregateOptions {
 }
 
 // SetComment sets the value for the Comment field.
-func (ao *AggregateOptions) SetComment(s string) *AggregateOptions {
-	ao.Comment = &s
+func (ao *AggregateOptions) SetComment(comment interface{}) *AggregateOptions {
+	ao.Comment = comment
 	return ao
 }
 
@@ -135,50 +118,4 @@ func (ao *AggregateOptions) SetLet(let interface{}) *AggregateOptions {
 func (ao *AggregateOptions) SetCustom(c bson.M) *AggregateOptions {
 	ao.Custom = c
 	return ao
-}
-
-// MergeAggregateOptions combines the given AggregateOptions instances into a single AggregateOptions in a last-one-wins
-// fashion.
-//
-// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
-// single options struct instead.
-func MergeAggregateOptions(opts ...*AggregateOptions) *AggregateOptions {
-	aggOpts := Aggregate()
-	for _, ao := range opts {
-		if ao == nil {
-			continue
-		}
-		if ao.AllowDiskUse != nil {
-			aggOpts.AllowDiskUse = ao.AllowDiskUse
-		}
-		if ao.BatchSize != nil {
-			aggOpts.BatchSize = ao.BatchSize
-		}
-		if ao.BypassDocumentValidation != nil {
-			aggOpts.BypassDocumentValidation = ao.BypassDocumentValidation
-		}
-		if ao.Collation != nil {
-			aggOpts.Collation = ao.Collation
-		}
-		if ao.MaxTime != nil {
-			aggOpts.MaxTime = ao.MaxTime
-		}
-		if ao.MaxAwaitTime != nil {
-			aggOpts.MaxAwaitTime = ao.MaxAwaitTime
-		}
-		if ao.Comment != nil {
-			aggOpts.Comment = ao.Comment
-		}
-		if ao.Hint != nil {
-			aggOpts.Hint = ao.Hint
-		}
-		if ao.Let != nil {
-			aggOpts.Let = ao.Let
-		}
-		if ao.Custom != nil {
-			aggOpts.Custom = ao.Custom
-		}
-	}
-
-	return aggOpts
 }

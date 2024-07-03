@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/internal/codecutil"
 	"go.mongodb.org/mongo-driver/internal/csot"
-	"go.mongodb.org/mongo-driver/mongo/description"
+	"go.mongodb.org/mongo-driver/internal/driverutil"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/mnet"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
@@ -42,15 +43,18 @@ type BatchCursor struct {
 	server               Server
 	serverDescription    description.Server
 	errorProcessor       ErrorProcessor // This will only be set when pinning to a connection.
-	connection           PinnedConnection
+	connection           *mnet.Connection
 	batchSize            int32
-	maxTimeMS            int64
-	currentBatch         *bsoncore.DocumentSequence
+	currentBatch         *bsoncore.Iterator
 	firstBatch           bool
 	cmdMonitor           *event.CommandMonitor
 	postBatchResumeToken bsoncore.Document
 	crypt                Crypt
 	serverAPI            *ServerAPIOptions
+
+	// maxAwaitTime is only valid for tailable awaitData cursors. If this option
+	// is set, it will be used as the "maxTimeMS" field on getMore commands.
+	maxAwaitTime *time.Duration
 
 	// legacy server (< 3.2) fields
 	limit       int32
@@ -62,9 +66,9 @@ type BatchCursor struct {
 type CursorResponse struct {
 	Server               Server
 	ErrorProcessor       ErrorProcessor // This will only be set when pinning to a connection.
-	Connection           PinnedConnection
+	Connection           *mnet.Connection
 	Desc                 description.Server
-	FirstBatch           *bsoncore.DocumentSequence
+	FirstBatch           *bsoncore.Iterator
 	Database             string
 	Collection           string
 	ID                   int64
@@ -102,7 +106,8 @@ func NewCursorResponse(info ResponseInfo) (CursorResponse, error) {
 			if !ok {
 				return CursorResponse{}, fmt.Errorf("firstBatch should be an array but is a BSON %s", elem.Value().Type)
 			}
-			curresp.FirstBatch = &bsoncore.DocumentSequence{Style: bsoncore.ArrayStyle, Data: arr}
+
+			curresp.FirstBatch = &bsoncore.Iterator{List: arr}
 		case "ns":
 			ns, ok := elem.Value().StringValueOK()
 			if !ok {
@@ -129,7 +134,7 @@ func NewCursorResponse(info ResponseInfo) (CursorResponse, error) {
 
 	// If the deployment is behind a load balancer and the cursor has a non-zero ID, pin the cursor to a connection and
 	// use the same connection to execute getMore and killCursors commands.
-	if curresp.Desc.LoadBalanced() && curresp.ID != 0 {
+	if driverutil.IsServerLoadBalanced(curresp.Desc) && curresp.ID != 0 {
 		// Cache the server as an ErrorProcessor to use when constructing deployments for cursor commands.
 		ep, ok := curresp.Server.(ErrorProcessor)
 		if !ok {
@@ -137,14 +142,15 @@ func NewCursorResponse(info ResponseInfo) (CursorResponse, error) {
 		}
 		curresp.ErrorProcessor = ep
 
-		refConn, ok := info.Connection.(PinnedConnection)
-		if !ok {
+		refConn := info.Connection.Pinner
+		if refConn == nil {
+			//debug.PrintStack()
 			return CursorResponse{}, fmt.Errorf("expected Connection used to establish a cursor to implement PinnedConnection, but got %T", info.Connection)
 		}
 		if err := refConn.PinToCursor(); err != nil {
 			return CursorResponse{}, fmt.Errorf("error incrementing connection reference count when creating a cursor: %w", err)
 		}
-		curresp.Connection = refConn
+		curresp.Connection = info.Connection
 	}
 
 	return curresp, nil
@@ -154,17 +160,32 @@ func NewCursorResponse(info ResponseInfo) (CursorResponse, error) {
 type CursorOptions struct {
 	BatchSize             int32
 	Comment               bsoncore.Value
-	MaxTimeMS             int64
 	Limit                 int32
 	CommandMonitor        *event.CommandMonitor
 	Crypt                 Crypt
 	ServerAPI             *ServerAPIOptions
 	MarshalValueEncoderFn func(io.Writer) (*bson.Encoder, error)
+
+	// MaxAwaitTime is only valid for tailable awaitData cursors. If this option
+	// is set, it will be used as the "maxTimeMS" field on getMore commands.
+	MaxAwaitTime *time.Duration
+}
+
+// SetMaxAwaitTime will set the maxTimeMS value on getMore commands for
+// tailable awaitData cursors.
+func (cursorOptions *CursorOptions) SetMaxAwaitTime(dur time.Duration) {
+	cursorOptions.MaxAwaitTime = &dur
 }
 
 // NewBatchCursor creates a new BatchCursor from the provided parameters.
-func NewBatchCursor(cr CursorResponse, clientSession *session.Client, clock *session.ClusterClock, opts CursorOptions) (*BatchCursor, error) {
-	ds := cr.FirstBatch
+func NewBatchCursor(
+	cr CursorResponse,
+	clientSession *session.Client,
+	clock *session.ClusterClock,
+	opts CursorOptions,
+) (*BatchCursor, error) {
+	firstBatch := cr.FirstBatch
+
 	bc := &BatchCursor{
 		clientSession:        clientSession,
 		clock:                clock,
@@ -176,7 +197,7 @@ func NewBatchCursor(cr CursorResponse, clientSession *session.Client, clock *ses
 		connection:           cr.Connection,
 		errorProcessor:       cr.ErrorProcessor,
 		batchSize:            opts.BatchSize,
-		maxTimeMS:            opts.MaxTimeMS,
+		maxAwaitTime:         opts.MaxAwaitTime,
 		cmdMonitor:           opts.CommandMonitor,
 		firstBatch:           true,
 		postBatchResumeToken: cr.postBatchResumeToken,
@@ -186,46 +207,27 @@ func NewBatchCursor(cr CursorResponse, clientSession *session.Client, clock *ses
 		encoderFn:            opts.MarshalValueEncoderFn,
 	}
 
-	if ds != nil {
-		bc.numReturned = int32(ds.DocumentCount())
-	}
-	if cr.Desc.WireVersion == nil {
-		bc.limit = opts.Limit
-
-		// Take as many documents from the batch as needed.
-		if bc.limit != 0 && bc.limit < bc.numReturned {
-			for i := int32(0); i < bc.limit; i++ {
-				_, err := ds.Next()
-				if err != nil {
-					return nil, err
-				}
-			}
-			ds.Data = ds.Data[:ds.Pos]
-			ds.ResetIterator()
-		}
+	if firstBatch != nil {
+		bc.numReturned = int32(firstBatch.Count())
 	}
 
-	bc.currentBatch = ds
+	bc.currentBatch = firstBatch
+
 	return bc, nil
 }
 
 // NewEmptyBatchCursor returns a batch cursor that is empty.
 func NewEmptyBatchCursor() *BatchCursor {
-	return &BatchCursor{currentBatch: new(bsoncore.DocumentSequence)}
+	return &BatchCursor{currentBatch: new(bsoncore.Iterator)}
 }
 
-// NewBatchCursorFromDocuments returns a batch cursor with current batch set to a sequence-style
-// DocumentSequence containing the provided documents.
-func NewBatchCursorFromDocuments(documents []byte) *BatchCursor {
+// NewBatchCursorFromList returns a batch cursor with current batch set to an
+// itertor that can traverse the BSON data contained within the array.
+func NewBatchCursorFromList(array []byte) *BatchCursor {
 	return &BatchCursor{
-		currentBatch: &bsoncore.DocumentSequence{
-			Data:  documents,
-			Style: bsoncore.SequenceStyle,
-		},
-		// BatchCursors created with this function have no associated ID nor server, so no getMore
-		// calls will be made.
-		id:     0,
-		server: nil,
+		currentBatch: &bsoncore.Iterator{List: array},
+		id:           0,
+		server:       nil,
 	}
 }
 
@@ -260,10 +262,14 @@ func (bc *BatchCursor) Next(ctx context.Context) bool {
 
 // Batch will return a DocumentSequence for the current batch of documents. The returned
 // DocumentSequence is only valid until the next call to Next or Close.
-func (bc *BatchCursor) Batch() *bsoncore.DocumentSequence { return bc.currentBatch }
+func (bc *BatchCursor) Batch() *bsoncore.Iterator {
+	return bc.currentBatch
+}
 
 // Err returns the latest error encountered.
-func (bc *BatchCursor) Err() error { return bc.err }
+func (bc *BatchCursor) Err() error {
+	return bc.err
+}
 
 // Close closes this batch cursor.
 func (bc *BatchCursor) Close(ctx context.Context) error {
@@ -273,9 +279,9 @@ func (bc *BatchCursor) Close(ctx context.Context) error {
 
 	err := bc.KillCursor(ctx)
 	bc.id = 0
-	bc.currentBatch.Data = nil
-	bc.currentBatch.Style = 0
-	bc.currentBatch.ResetIterator()
+
+	bc.currentBatch.List = nil
+	bc.currentBatch.Reset()
 
 	connErr := bc.unpinConnection()
 	if err == nil {
@@ -285,7 +291,7 @@ func (bc *BatchCursor) Close(ctx context.Context) error {
 }
 
 func (bc *BatchCursor) unpinConnection() error {
-	if bc.connection == nil {
+	if bc.connection == nil || bc.connection.Pinner == nil {
 		return nil
 	}
 
@@ -304,7 +310,7 @@ func (bc *BatchCursor) Server() Server {
 }
 
 func (bc *BatchCursor) clearBatch() {
-	bc.currentBatch.Data = bc.currentBatch.Data[:0]
+	bc.currentBatch.List = bc.currentBatch.List[:0]
 }
 
 // KillCursor kills cursor on server without closing batch cursor
@@ -316,7 +322,7 @@ func (bc *BatchCursor) KillCursor(ctx context.Context) error {
 	return Operation{
 		CommandFn: func(dst []byte, desc description.SelectedServer) ([]byte, error) {
 			dst = bsoncore.AppendStringElement(dst, "killCursors", bc.collection)
-			dst = bsoncore.BuildArrayElement(dst, "cursors", bsoncore.Value{Type: bsontype.Int64, Data: bsoncore.AppendInt64(nil, bc.id)})
+			dst = bsoncore.BuildArrayElement(dst, "cursors", bsoncore.Value{Type: bsoncore.TypeInt64, Data: bsoncore.AppendInt64(nil, bc.id)})
 			return dst, nil
 		},
 		Database:       bc.database,
@@ -369,14 +375,15 @@ func (bc *BatchCursor) getMore(ctx context.Context) {
 	}
 
 	bc.err = Operation{
-		CommandFn: func(dst []byte, desc description.SelectedServer) ([]byte, error) {
+		CommandFn: func(dst []byte, _ description.SelectedServer) ([]byte, error) {
 			dst = bsoncore.AppendInt64Element(dst, "getMore", bc.id)
 			dst = bsoncore.AppendStringElement(dst, "collection", bc.collection)
 			if numToReturn > 0 {
 				dst = bsoncore.AppendInt32Element(dst, "batchSize", numToReturn)
 			}
-			if bc.maxTimeMS > 0 {
-				dst = bsoncore.AppendInt64Element(dst, "maxTimeMS", bc.maxTimeMS)
+
+			if bc.maxAwaitTime != nil && *bc.maxAwaitTime > 0 {
+				dst = bsoncore.AppendInt64Element(dst, "maxTimeMS", int64(*bc.maxAwaitTime)/int64(time.Millisecond))
 			}
 
 			comment, err := codecutil.MarshalValue(bc.comment, bc.encoderFn)
@@ -385,7 +392,7 @@ func (bc *BatchCursor) getMore(ctx context.Context) {
 			}
 
 			// The getMore command does not support commenting pre-4.4.
-			if comment.Type != bsontype.Type(0) && bc.serverDescription.WireVersion.Max >= 9 {
+			if comment.Type != bsoncore.Type(0) && bc.serverDescription.WireVersion.Max >= 9 {
 				dst = bsoncore.AppendValueElement(dst, "comment", comment)
 			}
 
@@ -405,10 +412,12 @@ func (bc *BatchCursor) getMore(ctx context.Context) {
 			if !ok {
 				return fmt.Errorf("cursor.nextBatch should be an array but is a BSON %s", response.Lookup("cursor", "nextBatch").Type)
 			}
-			bc.currentBatch.Style = bsoncore.ArrayStyle
-			bc.currentBatch.Data = batch
-			bc.currentBatch.ResetIterator()
-			bc.numReturned += int32(bc.currentBatch.DocumentCount()) // Required for legacy operations which don't support limit.
+
+			bc.currentBatch.List = batch
+			bc.currentBatch.Reset()
+
+			// Required for legacy operations which don't support limit.
+			bc.numReturned += int32(bc.currentBatch.Count())
 
 			pbrt, err := response.LookupErr("cursor", "postBatchResumeToken")
 			if err != nil {
@@ -475,14 +484,14 @@ func (bc *BatchCursor) SetBatchSize(size int32) {
 	bc.batchSize = size
 }
 
-// SetMaxTime will set the maximum amount of time the server will allow the
+// SetMaxAwaitTime will set the maximum amount of time the server will allow the
 // operations to execute. The server will error if this field is set but the
 // cursor is not configured with awaitData=true.
 //
 // The time.Duration value passed by this setter will be converted and rounded
 // down to the nearest millisecond.
-func (bc *BatchCursor) SetMaxTime(dur time.Duration) {
-	bc.maxTimeMS = int64(dur / time.Millisecond)
+func (bc *BatchCursor) SetMaxAwaitTime(dur time.Duration) {
+	bc.maxAwaitTime = &dur
 }
 
 // SetComment sets the comment for future getMore operations.
@@ -505,22 +514,23 @@ func (bc *BatchCursor) getOperationDeployment() Deployment {
 // handled for these commands in this mode.
 type loadBalancedCursorDeployment struct {
 	errorProcessor ErrorProcessor
-	conn           PinnedConnection
+	//conn           PinnedConnection
+	conn *mnet.Connection
 }
 
 var _ Deployment = (*loadBalancedCursorDeployment)(nil)
 var _ Server = (*loadBalancedCursorDeployment)(nil)
 var _ ErrorProcessor = (*loadBalancedCursorDeployment)(nil)
 
-func (lbcd *loadBalancedCursorDeployment) SelectServer(_ context.Context, _ description.ServerSelector) (Server, error) {
+func (lbcd *loadBalancedCursorDeployment) SelectServer(context.Context, description.ServerSelector) (Server, error) {
 	return lbcd, nil
 }
 
 func (lbcd *loadBalancedCursorDeployment) Kind() description.TopologyKind {
-	return description.LoadBalanced
+	return description.TopologyKindLoadBalanced
 }
 
-func (lbcd *loadBalancedCursorDeployment) Connection(_ context.Context) (Connection, error) {
+func (lbcd *loadBalancedCursorDeployment) Connection(context.Context) (*mnet.Connection, error) {
 	return lbcd.conn, nil
 }
 
@@ -529,6 +539,12 @@ func (lbcd *loadBalancedCursorDeployment) RTTMonitor() RTTMonitor {
 	return &csot.ZeroRTTMonitor{}
 }
 
-func (lbcd *loadBalancedCursorDeployment) ProcessError(err error, conn Connection) ProcessErrorResult {
-	return lbcd.errorProcessor.ProcessError(err, conn)
+func (lbcd *loadBalancedCursorDeployment) ProcessError(err error, desc mnet.Describer) ProcessErrorResult {
+	return lbcd.errorProcessor.ProcessError(err, desc)
+}
+
+// GetServerSelectionTimeout returns zero as a server selection timeout is not
+// applicable for load-balanced cursor deployments.
+func (*loadBalancedCursorDeployment) GetServerSelectionTimeout() time.Duration {
+	return 0
 }

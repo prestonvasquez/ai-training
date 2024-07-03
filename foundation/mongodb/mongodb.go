@@ -20,7 +20,7 @@ func Connect(ctx context.Context, host string, userName string, password string)
 
 	uri := options.Client().ApplyURI(host)
 
-	client, err := mongo.Connect(ctx, auth, uri)
+	client, err := mongo.Connect(auth, uri)
 	if err != nil {
 		return nil, fmt.Errorf("connect: %w", err)
 	}
@@ -94,24 +94,24 @@ func lookupVectorIndex(ctx context.Context, col *mongo.Collection, vectorIndexNa
 }
 
 func runCreateIndexCmd(ctx context.Context, col *mongo.Collection, vectorIndexName string, settings VectorIndexSettings) error {
-	fields := bson.D{
+	/*
+		db.runCommand(
 		{
-			Key:   "type",
-			Value: "vector",
-		},
-		{
-			Key:   "numDimensions",
-			Value: settings.NumDimensions,
-		},
-		{
-			Key:   "path",
-			Value: settings.Path,
-		},
-		{
-			Key:   "similarity",
-			Value: settings.Similarity,
-		},
-	}
+			createSearchIndexes: "book",
+		    indexes: [{
+				name: "vector_index",
+				type: "vectorSearch",
+				definition: {
+					fields: [{
+						type: "vector",
+						numDimensions: 4,
+						path: "embedding",
+						similarity: "cosine"
+					}]
+				}
+			}]
+		})
+	*/
 
 	idx := bson.D{
 		{
@@ -122,25 +122,18 @@ func runCreateIndexCmd(ctx context.Context, col *mongo.Collection, vectorIndexNa
 			Key: "indexes",
 			Value: []bson.D{
 				{
-					{
-						Key:   "name",
-						Value: vectorIndexName,
-					},
-					{
-						Key:   "type",
-						Value: "vectorSearch",
-					},
-					{
-						Key: "definition",
-						Value: bson.D{
+					{Key: "name", Value: vectorIndexName},
+					{Key: "type", Value: "vectorSearch"},
+					{Key: "definition", Value: bson.D{
+						{Key: "fields", Value: []bson.D{
 							{
-								Key: "fields",
-								Value: []bson.D{
-									fields,
-								},
+								{Key: "type", Value: "vector"},
+								{Key: "numDimensions", Value: settings.NumDimensions},
+								{Key: "path", Value: settings.Path},
+								{Key: "similarity", Value: settings.Similarity},
 							},
-						},
-					},
+						}},
+					}},
 				},
 			},
 		},

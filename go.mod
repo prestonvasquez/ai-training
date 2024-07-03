@@ -4,8 +4,8 @@ go 1.22.4
 
 require (
 	code.sajari.com/docconv/v2 v2.0.0-pre.4
-	github.com/tmc/langchaingo v0.1.12
-	go.mongodb.org/mongo-driver v1.16.0
+	github.com/tmc/langchaingo v0.1.9
+	go.mongodb.org/mongo-driver v1.13.0-prerelease.0.20240703211100-b79eac454a0c
 	golang.org/x/text v0.16.0
 )
 
@@ -25,7 +25,6 @@ require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/levigross/exp-html v0.0.0-20120902181939-8df60c69a8f5 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/otiai10/gosseract/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

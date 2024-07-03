@@ -7,10 +7,7 @@
 package options
 
 import (
-	"time"
-
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -84,37 +81,6 @@ func (b *BucketOptions) SetReadPreference(rp *readpref.ReadPref) *BucketOptions 
 	return b
 }
 
-// MergeBucketOptions combines the given BucketOptions instances into a single BucketOptions in a last-one-wins fashion.
-//
-// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
-// single options struct instead.
-func MergeBucketOptions(opts ...*BucketOptions) *BucketOptions {
-	b := GridFSBucket()
-
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.Name != nil {
-			b.Name = opt.Name
-		}
-		if opt.ChunkSizeBytes != nil {
-			b.ChunkSizeBytes = opt.ChunkSizeBytes
-		}
-		if opt.WriteConcern != nil {
-			b.WriteConcern = opt.WriteConcern
-		}
-		if opt.ReadConcern != nil {
-			b.ReadConcern = opt.ReadConcern
-		}
-		if opt.ReadPreference != nil {
-			b.ReadPreference = opt.ReadPreference
-		}
-	}
-
-	return b
-}
-
 // UploadOptions represents options that can be used to configure a GridFS upload operation.
 type UploadOptions struct {
 	// The number of bytes in each chunk in the bucket. The default value is DefaultChunkSize (255 KiB).
@@ -126,7 +92,7 @@ type UploadOptions struct {
 	Metadata interface{}
 
 	// The BSON registry to use for converting filters to BSON documents. The default value is bson.DefaultRegistry.
-	Registry *bsoncodec.Registry
+	Registry *bson.Registry
 }
 
 // GridFSUpload creates a new UploadOptions instance.
@@ -143,31 +109,6 @@ func (u *UploadOptions) SetChunkSizeBytes(i int32) *UploadOptions {
 // SetMetadata sets the value for the Metadata field.
 func (u *UploadOptions) SetMetadata(doc interface{}) *UploadOptions {
 	u.Metadata = doc
-	return u
-}
-
-// MergeUploadOptions combines the given UploadOptions instances into a single UploadOptions in a last-one-wins fashion.
-//
-// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
-// single options struct instead.
-func MergeUploadOptions(opts ...*UploadOptions) *UploadOptions {
-	u := GridFSUpload()
-
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.ChunkSizeBytes != nil {
-			u.ChunkSizeBytes = opt.ChunkSizeBytes
-		}
-		if opt.Metadata != nil {
-			u.Metadata = opt.Metadata
-		}
-		if opt.Registry != nil {
-			u.Registry = opt.Registry
-		}
-	}
-
 	return u
 }
 
@@ -197,26 +138,6 @@ func (n *NameOptions) SetRevision(r int32) *NameOptions {
 	return n
 }
 
-// MergeNameOptions combines the given NameOptions instances into a single *NameOptions in a last-one-wins fashion.
-//
-// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
-// single options struct instead.
-func MergeNameOptions(opts ...*NameOptions) *NameOptions {
-	n := GridFSName()
-	n.Revision = &DefaultRevision
-
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.Revision != nil {
-			n.Revision = opt.Revision
-		}
-	}
-
-	return n
-}
-
 // GridFSFindOptions represents options that can be used to configure a GridFS Find operation.
 type GridFSFindOptions struct {
 	// If true, the server can write temporary data to disk while executing the find operation. The default value
@@ -231,14 +152,6 @@ type GridFSFindOptions struct {
 	// filter will be returned. A negative limit specifies that the resulting documents should be returned in a single
 	// batch. The default value is 0.
 	Limit *int32
-
-	// The maximum amount of time that the query can run on the server. The default value is nil, meaning that there
-	// is no time limit for query execution.
-	//
-	// NOTE(benjirewis): MaxTime will be deprecated in a future release. The more general Timeout option may be used
-	// in its place to control the amount of time that a single operation can run before returning an error. MaxTime
-	// is ignored if Timeout is set on the client.
-	MaxTime *time.Duration
 
 	// If true, the cursor created by the operation will not timeout after a period of inactivity. The default value
 	// is false.
@@ -275,16 +188,6 @@ func (f *GridFSFindOptions) SetLimit(i int32) *GridFSFindOptions {
 	return f
 }
 
-// SetMaxTime sets the value for the MaxTime field.
-//
-// NOTE(benjirewis): MaxTime will be deprecated in a future release. The more general Timeout
-// option may be used in its place to control the amount of time that a single operation can
-// run before returning an error. MaxTime is ignored if Timeout is set on the client.
-func (f *GridFSFindOptions) SetMaxTime(d time.Duration) *GridFSFindOptions {
-	f.MaxTime = &d
-	return f
-}
-
 // SetNoCursorTimeout sets the value for the NoCursorTimeout field.
 func (f *GridFSFindOptions) SetNoCursorTimeout(b bool) *GridFSFindOptions {
 	f.NoCursorTimeout = &b
@@ -301,41 +204,4 @@ func (f *GridFSFindOptions) SetSkip(i int32) *GridFSFindOptions {
 func (f *GridFSFindOptions) SetSort(sort interface{}) *GridFSFindOptions {
 	f.Sort = sort
 	return f
-}
-
-// MergeGridFSFindOptions combines the given GridFSFindOptions instances into a single GridFSFindOptions in a
-// last-one-wins fashion.
-//
-// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
-// single options struct instead.
-func MergeGridFSFindOptions(opts ...*GridFSFindOptions) *GridFSFindOptions {
-	fo := GridFSFind()
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.AllowDiskUse != nil {
-			fo.AllowDiskUse = opt.AllowDiskUse
-		}
-		if opt.BatchSize != nil {
-			fo.BatchSize = opt.BatchSize
-		}
-		if opt.Limit != nil {
-			fo.Limit = opt.Limit
-		}
-		if opt.MaxTime != nil {
-			fo.MaxTime = opt.MaxTime
-		}
-		if opt.NoCursorTimeout != nil {
-			fo.NoCursorTimeout = opt.NoCursorTimeout
-		}
-		if opt.Skip != nil {
-			fo.Skip = opt.Skip
-		}
-		if opt.Sort != nil {
-			fo.Sort = opt.Sort
-		}
-	}
-
-	return fo
 }

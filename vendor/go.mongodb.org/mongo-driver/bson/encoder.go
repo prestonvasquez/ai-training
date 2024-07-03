@@ -7,12 +7,8 @@
 package bson
 
 import (
-	"errors"
 	"reflect"
 	"sync"
-
-	"go.mongodb.org/mongo-driver/bson/bsoncodec"
-	"go.mongodb.org/mongo-driver/bson/bsonrw"
 )
 
 // This pool is used to keep the allocations of Encoders down. This is only used for the Marshal*
@@ -24,11 +20,11 @@ var encPool = sync.Pool{
 	},
 }
 
-// An Encoder writes a serialization format to an output stream. It writes to a bsonrw.ValueWriter
+// An Encoder writes a serialization format to an output stream. It writes to a ValueWriter
 // as the destination of BSON data.
 type Encoder struct {
-	ec bsoncodec.EncodeContext
-	vw bsonrw.ValueWriter
+	ec EncodeContext
+	vw ValueWriter
 
 	errorOnInlineDuplicates bool
 	intMinSize              bool
@@ -41,34 +37,11 @@ type Encoder struct {
 }
 
 // NewEncoder returns a new encoder that uses the DefaultRegistry to write to vw.
-func NewEncoder(vw bsonrw.ValueWriter) (*Encoder, error) {
-	// TODO:(GODRIVER-2719): Remove error return value.
-	if vw == nil {
-		return nil, errors.New("cannot create a new Encoder with a nil ValueWriter")
-	}
-
+func NewEncoder(vw ValueWriter) *Encoder {
 	return &Encoder{
-		ec: bsoncodec.EncodeContext{Registry: DefaultRegistry},
+		ec: EncodeContext{Registry: DefaultRegistry},
 		vw: vw,
-	}, nil
-}
-
-// NewEncoderWithContext returns a new encoder that uses EncodeContext ec to write to vw.
-//
-// Deprecated: Use [NewEncoder] and use the Encoder configuration methods to set the desired marshal
-// behavior instead.
-func NewEncoderWithContext(ec bsoncodec.EncodeContext, vw bsonrw.ValueWriter) (*Encoder, error) {
-	if ec.Registry == nil {
-		ec = bsoncodec.EncodeContext{Registry: DefaultRegistry}
 	}
-	if vw == nil {
-		return nil, errors.New("cannot create a new Encoder with a nil ValueWriter")
-	}
-
-	return &Encoder{
-		ec: ec,
-		vw: vw,
-	}, nil
 }
 
 // Encode writes the BSON encoding of val to the stream.
@@ -81,7 +54,7 @@ func (e *Encoder) Encode(val interface{}) error {
 		if err != nil {
 			return err
 		}
-		return bsonrw.Copier{}.CopyDocumentFromBytes(e.vw, buf)
+		return copyDocumentFromBytes(e.vw, buf)
 	}
 
 	encoder, err := e.ec.LookupEncoder(reflect.TypeOf(val))
@@ -121,26 +94,13 @@ func (e *Encoder) Encode(val interface{}) error {
 
 // Reset will reset the state of the Encoder, using the same *EncodeContext used in
 // the original construction but using vw.
-func (e *Encoder) Reset(vw bsonrw.ValueWriter) error {
-	// TODO:(GODRIVER-2719): Remove error return value.
+func (e *Encoder) Reset(vw ValueWriter) {
 	e.vw = vw
-	return nil
 }
 
 // SetRegistry replaces the current registry of the Encoder with r.
-func (e *Encoder) SetRegistry(r *bsoncodec.Registry) error {
-	// TODO:(GODRIVER-2719): Remove error return value.
+func (e *Encoder) SetRegistry(r *Registry) {
 	e.ec.Registry = r
-	return nil
-}
-
-// SetContext replaces the current EncodeContext of the encoder with ec.
-//
-// Deprecated: Use the Encoder configuration methods set the desired marshal behavior instead.
-func (e *Encoder) SetContext(ec bsoncodec.EncodeContext) error {
-	// TODO:(GODRIVER-2719): Remove error return value.
-	e.ec = ec
-	return nil
 }
 
 // ErrorOnInlineDuplicates causes the Encoder to return an error if there is a duplicate field in
