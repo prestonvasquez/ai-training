@@ -3,6 +3,9 @@
 //
 // This requires running the following commands:
 // $ make dev-up		// This starts the mongodb service in docker compose.
+//
+// You can use this command to open a prompt to mongodb:
+// $ make mongo
 package main
 
 import (
@@ -92,7 +95,10 @@ func run() error {
 		return fmt.Errorf("storeDocuments: %w", err)
 	}
 
-	fmt.Println("---- VECTOR QUERY ----")
+	// -------------------------------------------------------------------------
+	// Perform a vector search.
+
+	fmt.Println("---- VECTOR SEARCH ----")
 
 	results, err := vectorSearch(ctx, col, []float64{1.2, 2.2, 3.2, 4.2}, 10)
 	if err != nil {
