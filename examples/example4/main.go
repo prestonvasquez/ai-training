@@ -71,6 +71,8 @@ func run() error {
 		return fmt.Errorf("storeDocuments: %w", err)
 	}
 
+	fmt.Println("---- VECTOR QUERY ----")
+
 	if err := queryDocuments(ctx, col); err != nil {
 		return fmt.Errorf("storeDocuments: %w", err)
 	}
@@ -79,7 +81,14 @@ func run() error {
 }
 
 func storeDocuments(ctx context.Context, col *mongo.Collection) error {
-	col.DeleteMany(ctx, bson.D{})
+	findRes, err := col.Find(ctx, bson.D{})
+	if err != nil {
+		return fmt.Errorf("find: %w", err)
+	}
+
+	if findRes.RemainingBatchLength() != 0 {
+		return nil
+	}
 
 	type document struct {
 		ID        int       `bson:"id"`
@@ -93,12 +102,12 @@ func storeDocuments(ctx context.Context, col *mongo.Collection) error {
 		Embedding: []float64{1.0, 2.0, 3.0, 4.0},
 	}
 
-	res, err := col.InsertOne(ctx, d1)
+	res2, err := col.InsertOne(ctx, d1)
 	if err != nil {
 		return fmt.Errorf("insert: %w", err)
 	}
 
-	fmt.Println(res.InsertedID)
+	fmt.Println(res2.InsertedID)
 
 	d2 := document{
 		ID:        2,
@@ -106,40 +115,40 @@ func storeDocuments(ctx context.Context, col *mongo.Collection) error {
 		Embedding: []float64{1.5, 2.5, 3.5, 4.5},
 	}
 
-	res, err = col.InsertOne(ctx, d2)
+	res3, err := col.InsertOne(ctx, d2)
 	if err != nil {
 		return fmt.Errorf("insert: %w", err)
 	}
 
-	fmt.Println(res.InsertedID)
+	fmt.Println(res3.InsertedID)
 
 	return nil
 }
 
 func queryDocuments(ctx context.Context, col *mongo.Collection) error {
-	findRes, err := col.Find(ctx, bson.D{})
-	if err != nil {
-		return fmt.Errorf("find: %w", err)
-	}
-
-	var r []struct {
-		Text      string    `bson:"text"`
-		Embedding []float64 `bson:"embedding"`
-		Score     float64   `bson:"score"`
-	}
-
-	fmt.Println("BATCH", findRes.RemainingBatchLength())
-
-	if err := findRes.All(ctx, &r); err != nil {
-		return fmt.Errorf("find: %w", err)
-	}
-	findRes.Close(ctx)
-
-	fmt.Println("find:", r)
-
-	fmt.Println("---- VECTOR QUERY ----")
-
-	// db.book.aggregate([ { "$vectorSearch": { "index": "vector_index", "exact": false, "numCandidates": 10, "path": "embedding", "queryVector": [1.2, 2.2, 3.2, 4.2], "limit": 10 } }, { "$project": { "text": 1, "embedding": 1, "score": { "$meta": "vectorSearchScore" } } }])
+	/*
+		db.book.aggregate([
+			{
+				"$vectorSearch": {
+					"index": "vector_index",
+					"exact": false,
+					"numCandidates": 10,
+					"path": "embedding",
+					"queryVector": [1.2, 2.2, 3.2, 4.2],
+					"limit": 10
+				}
+			},
+			{
+				"$project": {
+					"text": 1,
+					"embedding": 1,
+					"score": {
+						"$meta": "vectorSearchScore"
+					}
+				}
+			}
+		])
+	*/
 
 	pipeline := mongo.Pipeline{
 		{{
@@ -170,17 +179,19 @@ func queryDocuments(ctx context.Context, col *mongo.Collection) error {
 		return fmt.Errorf("aggregate: %w", err)
 	}
 
-	fmt.Println("BATCH", cur.RemainingBatchLength())
+	fmt.Println("COUNT :", cur.RemainingBatchLength())
 
 	var results []struct {
+		ID        int       `bson:"id"`
 		Text      string    `bson:"text"`
 		Embedding []float64 `bson:"embedding"`
 		Score     float64   `bson:"score"`
 	}
+
 	if err := cur.All(ctx, &results); err != nil {
 		return fmt.Errorf("all: %w", err)
 	}
-	cur.Close(ctx)
+	defer cur.Close(ctx)
 
 	fmt.Println("RESULT:", results)
 

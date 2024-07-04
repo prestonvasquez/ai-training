@@ -7,6 +7,8 @@
 package session
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -18,6 +20,7 @@ type ClientOptions struct {
 	DefaultReadConcern    *readconcern.ReadConcern
 	DefaultWriteConcern   *writeconcern.WriteConcern
 	DefaultReadPreference *readpref.ReadPref
+	DefaultMaxCommitTime  *time.Duration
 	Snapshot              *bool
 }
 
@@ -26,6 +29,7 @@ type TransactionOptions struct {
 	ReadConcern    *readconcern.ReadConcern
 	WriteConcern   *writeconcern.WriteConcern
 	ReadPreference *readpref.ReadPref
+	MaxCommitTime  *time.Duration
 }
 
 func mergeClientOptions(opts ...*ClientOptions) *ClientOptions {
@@ -45,6 +49,9 @@ func mergeClientOptions(opts ...*ClientOptions) *ClientOptions {
 		}
 		if opt.DefaultWriteConcern != nil {
 			c.DefaultWriteConcern = opt.DefaultWriteConcern
+		}
+		if opt.DefaultMaxCommitTime != nil {
+			c.DefaultMaxCommitTime = opt.DefaultMaxCommitTime
 		}
 		if opt.Snapshot != nil {
 			c.Snapshot = opt.Snapshot

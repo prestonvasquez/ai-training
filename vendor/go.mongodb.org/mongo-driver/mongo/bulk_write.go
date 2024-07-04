@@ -10,12 +10,13 @@ import (
 	"context"
 	"errors"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsoncodec"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/operation"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
@@ -170,7 +171,7 @@ func (bw *bulkWrite) runInsert(ctx context.Context, batch bulkWriteBatch) (opera
 		if err != nil {
 			return operation.InsertResult{}, err
 		}
-		doc, _, err = ensureID(doc, bson.NilObjectID, bw.collection.bsonOpts, bw.collection.registry)
+		doc, _, err = ensureID(doc, primitive.NilObjectID, bw.collection.bsonOpts, bw.collection.registry)
 		if err != nil {
 			return operation.InsertResult{}, err
 		}
@@ -290,7 +291,7 @@ func createDeleteDoc(
 	hint interface{},
 	deleteOne bool,
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 ) (bsoncore.Document, error) {
 	f, err := marshal(filter, bsonOpts, registry)
 	if err != nil {
@@ -428,7 +429,7 @@ func createUpdateDoc(
 	multi bool,
 	checkDollarKey bool,
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 ) (bsoncore.Document, error) {
 	f, err := marshal(filter, bsonOpts, registry)
 	if err != nil {

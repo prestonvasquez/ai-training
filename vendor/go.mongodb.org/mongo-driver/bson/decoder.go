@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	"go.mongodb.org/mongo-driver/bson/bsoncodec"
+	"go.mongodb.org/mongo-driver/bson/bsonrw"
 )
 
 // ErrDecodeToNil is the error returned when trying to decode to a nil value
@@ -25,12 +28,14 @@ var decPool = sync.Pool{
 	},
 }
 
-// A Decoder reads and decodes BSON documents from a stream. It reads from a ValueReader as
+// A Decoder reads and decodes BSON documents from a stream. It reads from a bsonrw.ValueReader as
 // the source of BSON data.
 type Decoder struct {
-	dc DecodeContext
-	vr ValueReader
+	dc bsoncodec.DecodeContext
+	vr bsonrw.ValueReader
 
+	// We persist defaultDocumentM and defaultDocumentD on the Decoder to prevent overwriting from
+	// (*Decoder).SetContext.
 	defaultDocumentM bool
 	defaultDocumentD bool
 
@@ -42,11 +47,33 @@ type Decoder struct {
 }
 
 // NewDecoder returns a new decoder that uses the DefaultRegistry to read from vr.
-func NewDecoder(vr ValueReader) *Decoder {
-	return &Decoder{
-		dc: DecodeContext{Registry: DefaultRegistry},
-		vr: vr,
+func NewDecoder(vr bsonrw.ValueReader) (*Decoder, error) {
+	if vr == nil {
+		return nil, errors.New("cannot create a new Decoder with a nil ValueReader")
 	}
+
+	return &Decoder{
+		dc: bsoncodec.DecodeContext{Registry: DefaultRegistry},
+		vr: vr,
+	}, nil
+}
+
+// NewDecoderWithContext returns a new decoder that uses DecodeContext dc to read from vr.
+//
+// Deprecated: Use [NewDecoder] and use the Decoder configuration methods set the desired unmarshal
+// behavior instead.
+func NewDecoderWithContext(dc bsoncodec.DecodeContext, vr bsonrw.ValueReader) (*Decoder, error) {
+	if dc.Registry == nil {
+		dc.Registry = DefaultRegistry
+	}
+	if vr == nil {
+		return nil, errors.New("cannot create a new Decoder with a nil ValueReader")
+	}
+
+	return &Decoder{
+		dc: dc,
+		vr: vr,
+	}, nil
 }
 
 // Decode reads the next BSON document from the stream and decodes it into the
@@ -56,7 +83,7 @@ func NewDecoder(vr ValueReader) *Decoder {
 func (d *Decoder) Decode(val interface{}) error {
 	if unmarshaler, ok := val.(Unmarshaler); ok {
 		// TODO(skriptble): Reuse a []byte here and use the AppendDocumentBytes method.
-		buf, err := copyDocumentToBytes(d.vr)
+		buf, err := bsonrw.Copier{}.CopyDocumentToBytes(d.vr)
 		if err != nil {
 			return err
 		}
@@ -109,13 +136,26 @@ func (d *Decoder) Decode(val interface{}) error {
 
 // Reset will reset the state of the decoder, using the same *DecodeContext used in
 // the original construction but using vr for reading.
-func (d *Decoder) Reset(vr ValueReader) {
+func (d *Decoder) Reset(vr bsonrw.ValueReader) error {
+	// TODO:(GODRIVER-2719): Remove error return value.
 	d.vr = vr
+	return nil
 }
 
 // SetRegistry replaces the current registry of the decoder with r.
-func (d *Decoder) SetRegistry(r *Registry) {
+func (d *Decoder) SetRegistry(r *bsoncodec.Registry) error {
+	// TODO:(GODRIVER-2719): Remove error return value.
 	d.dc.Registry = r
+	return nil
+}
+
+// SetContext replaces the current registry of the decoder with dc.
+//
+// Deprecated: Use the Decoder configuration methods to set the desired unmarshal behavior instead.
+func (d *Decoder) SetContext(dc bsoncodec.DecodeContext) error {
+	// TODO:(GODRIVER-2719): Remove error return value.
+	d.dc = dc
+	return nil
 }
 
 // DefaultDocumentM causes the Decoder to always unmarshal documents into the primitive.M type. This

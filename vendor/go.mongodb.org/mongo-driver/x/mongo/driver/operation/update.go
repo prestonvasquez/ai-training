@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/internal/driverutil"
 	"go.mongodb.org/mongo-driver/internal/logger"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
@@ -173,11 +174,11 @@ func (u *Update) Execute(ctx context.Context) error {
 func (u *Update) command(dst []byte, desc description.SelectedServer) ([]byte, error) {
 	dst = bsoncore.AppendStringElement(dst, "update", u.collection)
 	if u.bypassDocumentValidation != nil &&
-		(desc.WireVersion != nil && driverutil.VersionRangeIncludes(*desc.WireVersion, 4)) {
+		(desc.WireVersion != nil && desc.WireVersion.Includes(4)) {
 
 		dst = bsoncore.AppendBooleanElement(dst, "bypassDocumentValidation", *u.bypassDocumentValidation)
 	}
-	if u.comment.Type != bsoncore.Type(0) {
+	if u.comment.Type != bsontype.Type(0) {
 		dst = bsoncore.AppendValueElement(dst, "comment", u.comment)
 	}
 	if u.ordered != nil {
@@ -186,7 +187,7 @@ func (u *Update) command(dst []byte, desc description.SelectedServer) ([]byte, e
 	}
 	if u.hint != nil && *u.hint {
 
-		if desc.WireVersion == nil || !driverutil.VersionRangeIncludes(*desc.WireVersion, 5) {
+		if desc.WireVersion == nil || !desc.WireVersion.Includes(5) {
 			return nil, errors.New("the 'hint' command parameter requires a minimum server wire version of 5")
 		}
 		if !u.writeConcern.Acknowledged() {
@@ -194,7 +195,7 @@ func (u *Update) command(dst []byte, desc description.SelectedServer) ([]byte, e
 		}
 	}
 	if u.arrayFilters != nil && *u.arrayFilters {
-		if desc.WireVersion == nil || !driverutil.VersionRangeIncludes(*desc.WireVersion, 6) {
+		if desc.WireVersion == nil || !desc.WireVersion.Includes(6) {
 			return nil, errors.New("the 'arrayFilters' command parameter requires a minimum server wire version of 6")
 		}
 	}

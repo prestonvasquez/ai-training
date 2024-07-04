@@ -7,10 +7,12 @@
 package options
 
 import (
-	"bytes"
+	"fmt"
+	"reflect"
 	"strconv"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 )
 
@@ -117,7 +119,7 @@ type ArrayFilters struct {
 	// Registry is the registry to use for converting filters. Defaults to bson.DefaultRegistry.
 	//
 	// Deprecated: Marshaling ArrayFilters to BSON will not be supported in Go Driver 2.0.
-	Registry *bson.Registry
+	Registry *bsoncodec.Registry
 
 	Filters []interface{} // The filters to apply
 }
@@ -131,18 +133,12 @@ func (af *ArrayFilters) ToArray() ([]bson.Raw, error) {
 		registry = bson.DefaultRegistry
 	}
 	filters := make([]bson.Raw, 0, len(af.Filters))
-	buf := new(bytes.Buffer)
-	enc := new(bson.Encoder)
 	for _, f := range af.Filters {
-		buf.Reset()
-		vw := bson.NewValueWriter(buf)
-		enc.Reset(vw)
-		enc.SetRegistry(registry)
-		err := enc.Encode(f)
+		filter, err := bson.MarshalWithRegistry(registry, f)
 		if err != nil {
 			return nil, err
 		}
-		filters = append(filters, buf.Bytes())
+		filters = append(filters, filter)
 	}
 	return filters, nil
 }
@@ -158,20 +154,30 @@ func (af *ArrayFilters) ToArrayDocument() (bson.Raw, error) {
 	}
 
 	idx, arr := bsoncore.AppendArrayStart(nil)
-	buf := new(bytes.Buffer)
-	enc := new(bson.Encoder)
 	for i, f := range af.Filters {
-		buf.Reset()
-		vw := bson.NewValueWriter(buf)
-		enc.Reset(vw)
-		enc.SetRegistry(registry)
-		err := enc.Encode(f)
+		filter, err := bson.MarshalWithRegistry(registry, f)
 		if err != nil {
 			return nil, err
 		}
 
-		arr = bsoncore.AppendDocumentElement(arr, strconv.Itoa(i), buf.Bytes())
+		arr = bsoncore.AppendDocumentElement(arr, strconv.Itoa(i), filter)
 	}
 	arr, _ = bsoncore.AppendArrayEnd(arr, idx)
 	return arr, nil
+}
+
+// MarshalError is returned when attempting to transform a value into a document
+// results in an error.
+//
+// Deprecated: MarshalError is unused and will be removed in Go Driver 2.0.
+type MarshalError struct {
+	Value interface{}
+	Err   error
+}
+
+// Error implements the error interface.
+//
+// Deprecated: MarshalError is unused and will be removed in Go Driver 2.0.
+func (me MarshalError) Error() string {
+	return fmt.Sprintf("cannot transform type %s to a bson.Raw", reflect.TypeOf(me.Value))
 }

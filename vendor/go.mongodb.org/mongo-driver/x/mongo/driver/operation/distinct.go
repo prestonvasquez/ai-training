@@ -11,13 +11,14 @@ import (
 	"errors"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/internal/driverutil"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
@@ -25,6 +26,7 @@ import (
 type Distinct struct {
 	collation      bsoncore.Document
 	key            *string
+	maxTime        *time.Duration
 	query          bsoncore.Document
 	session        *session.Client
 	clock          *session.ClusterClock
@@ -98,6 +100,7 @@ func (d *Distinct) Execute(ctx context.Context) error {
 		Crypt:             d.crypt,
 		Database:          d.database,
 		Deployment:        d.deployment,
+		MaxTime:           d.maxTime,
 		ReadConcern:       d.readConcern,
 		ReadPreference:    d.readPreference,
 		Selector:          d.selector,
@@ -111,12 +114,12 @@ func (d *Distinct) Execute(ctx context.Context) error {
 func (d *Distinct) command(dst []byte, desc description.SelectedServer) ([]byte, error) {
 	dst = bsoncore.AppendStringElement(dst, "distinct", d.collection)
 	if d.collation != nil {
-		if desc.WireVersion == nil || !driverutil.VersionRangeIncludes(*desc.WireVersion, 5) {
+		if desc.WireVersion == nil || !desc.WireVersion.Includes(5) {
 			return nil, errors.New("the 'collation' command parameter requires a minimum server wire version of 5")
 		}
 		dst = bsoncore.AppendDocumentElement(dst, "collation", d.collation)
 	}
-	if d.comment.Type != bsoncore.Type(0) {
+	if d.comment.Type != bsontype.Type(0) {
 		dst = bsoncore.AppendValueElement(dst, "comment", d.comment)
 	}
 	if d.key != nil {
@@ -145,6 +148,16 @@ func (d *Distinct) Key(key string) *Distinct {
 	}
 
 	d.key = &key
+	return d
+}
+
+// MaxTime specifies the maximum amount of time to allow the query to run on the server.
+func (d *Distinct) MaxTime(maxTime *time.Duration) *Distinct {
+	if d == nil {
+		d = new(Distinct)
+	}
+
+	d.maxTime = maxTime
 	return d
 }
 

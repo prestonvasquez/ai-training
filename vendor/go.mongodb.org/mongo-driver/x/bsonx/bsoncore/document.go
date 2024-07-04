@@ -12,6 +12,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 )
 
 // ValidationError is an error type returned when attempting to validate a document or array.
@@ -61,13 +63,13 @@ func (ibe InsufficientBytesError) Equal(err2 error) bool {
 // the path is neither an embedded document nor an array.
 type InvalidDepthTraversalError struct {
 	Key  string
-	Type Type
+	Type bsontype.Type
 }
 
 func (idte InvalidDepthTraversalError) Error() string {
 	return fmt.Sprintf(
 		"attempt to traverse into %s, but it's type is %s, not %s nor %s",
-		idte.Key, idte.Type, TypeEmbeddedDocument, TypeArray,
+		idte.Key, idte.Type, bsontype.EmbeddedDocument, bsontype.Array,
 	)
 }
 
@@ -165,15 +167,15 @@ func (d Document) LookupErr(key ...string) (Value, error) {
 			continue
 		}
 		if len(key) > 1 {
-			tt := Type(elem[0])
+			tt := bsontype.Type(elem[0])
 			switch tt {
-			case TypeEmbeddedDocument:
+			case bsontype.EmbeddedDocument:
 				val, err := elem.Value().Document().LookupErr(key[1:]...)
 				if err != nil {
 					return Value{}, err
 				}
 				return val, nil
-			case TypeArray:
+			case bsontype.Array:
 				// Convert to Document to continue Lookup recursion.
 				val, err := Document(elem.Value().Array()).LookupErr(key[1:]...)
 				if err != nil {

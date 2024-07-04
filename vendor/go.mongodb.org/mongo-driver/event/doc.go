@@ -21,7 +21,7 @@
 //	  },
 //	}
 //	clientOpts := options.Client().ApplyURI("mongodb://localhost:27017").SetMonitor(cmdMonitor)
-//	client, err := mongo.Connect( clientOpts)
+//	client, err := mongo.Connect(context.Background(), clientOpts)
 //
 // Monitoring the connection pool requires specifying a PoolMonitor when constructing
 // a mongo.Client. The following code tracks the number of checked out connections:
@@ -30,15 +30,15 @@
 //	poolMonitor := &event.PoolMonitor{
 //	  Event: func(evt *event.PoolEvent) {
 //	    switch evt.Type {
-//	    case event.ConnectionCheckedOut:
+//	    case event.GetSucceeded:
 //	      connsCheckedOut++
-//	    case event.ConnectionCheckedIn:
+//	    case event.ConnectionReturned:
 //	      connsCheckedOut--
 //	    }
 //	  },
 //	}
 //	clientOpts := options.Client().ApplyURI("mongodb://localhost:27017").SetPoolMonitor(poolMonitor)
-//	client, err := mongo.Connect( clientOpts)
+//	client, err := mongo.Connect(context.Background(), clientOpts)
 //
 // Monitoring server changes specifying a ServerMonitor object when constructing
 // a mongo.Client. Different functions can be set on the ServerMonitor to
@@ -52,5 +52,5 @@
 //	     }
 //	   }
 //	   clientOpts := options.Client().ApplyURI("mongodb://localhost:27017").SetServerMonitor(svrMonitor)
-//	   client, err := mongo.Connect( clientOpts)
+//	   client, err := mongo.Connect(context.Background(), clientOpts)
 package event

@@ -20,7 +20,7 @@ func Connect(ctx context.Context, host string, userName string, password string)
 
 	uri := options.Client().ApplyURI(host)
 
-	client, err := mongo.Connect(auth, uri)
+	client, err := mongo.Connect(ctx, auth, uri)
 	if err != nil {
 		return nil, fmt.Errorf("connect: %w", err)
 	}

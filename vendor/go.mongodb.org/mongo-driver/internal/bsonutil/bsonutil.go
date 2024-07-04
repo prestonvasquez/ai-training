@@ -37,9 +37,9 @@ func StringSliceFromRawValue(name string, val bson.RawValue) ([]string, error) {
 	return strs, nil
 }
 
-// RawArrayToDocuments converts an array of documents to []bson.Raw.
-func RawArrayToDocuments(arr bson.RawArray) []bson.Raw {
-	values, err := arr.Values()
+// RawToDocuments converts a bson.Raw that is internally an array of documents to []bson.Raw.
+func RawToDocuments(doc bson.Raw) []bson.Raw {
+	values, err := doc.Values()
 	if err != nil {
 		panic(fmt.Sprintf("error converting BSON document to values: %v", err))
 	}

@@ -7,7 +7,7 @@
 package options
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 )
 
@@ -51,7 +51,7 @@ const (
 
 // ExplicitEncryptionOptions specifies options for configuring an explicit encryption context.
 type ExplicitEncryptionOptions struct {
-	KeyID            *bson.Binary
+	KeyID            *primitive.Binary
 	KeyAltName       *string
 	Algorithm        string
 	QueryType        string
@@ -73,7 +73,7 @@ func ExplicitEncryption() *ExplicitEncryptionOptions {
 }
 
 // SetKeyID sets the key identifier.
-func (eeo *ExplicitEncryptionOptions) SetKeyID(keyID bson.Binary) *ExplicitEncryptionOptions {
+func (eeo *ExplicitEncryptionOptions) SetKeyID(keyID primitive.Binary) *ExplicitEncryptionOptions {
 	eeo.KeyID = &keyID
 	return eeo
 }
@@ -133,4 +133,25 @@ func (rmdko *RewrapManyDataKeyOptions) SetProvider(provider string) *RewrapManyD
 func (rmdko *RewrapManyDataKeyOptions) SetMasterKey(masterKey bsoncore.Document) *RewrapManyDataKeyOptions {
 	rmdko.MasterKey = masterKey
 	return rmdko
+}
+
+// MergeRewrapManyDataKeyOptions combines the given RewrapManyDataKeyOptions instances into a single
+// RewrapManyDataKeyOptions in a last one wins fashion.
+//
+// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
+// single options struct instead.
+func MergeRewrapManyDataKeyOptions(opts ...*RewrapManyDataKeyOptions) *RewrapManyDataKeyOptions {
+	rmdkOpts := RewrapManyDataKey()
+	for _, rmdko := range opts {
+		if rmdko == nil {
+			continue
+		}
+		if provider := rmdko.Provider; provider != nil {
+			rmdkOpts.Provider = provider
+		}
+		if masterKey := rmdko.MasterKey; masterKey != nil {
+			rmdkOpts.MasterKey = masterKey
+		}
+	}
+	return rmdkOpts
 }

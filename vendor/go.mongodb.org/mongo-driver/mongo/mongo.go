@@ -4,7 +4,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 
-package mongo
+package mongo // import "go.mongodb.org/mongo-driver/mongo"
 
 import (
 	"bytes"
@@ -22,11 +22,39 @@ import (
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsoncodec"
+	"go.mongodb.org/mongo-driver/bson/bsonrw"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Dialer is used to make network connections.
 type Dialer interface {
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
+}
+
+// BSONAppender is an interface implemented by types that can marshal a
+// provided type into BSON bytes and append those bytes to the provided []byte.
+// The AppendBSON can return a non-nil error and non-nil []byte. The AppendBSON
+// method may also write incomplete BSON to the []byte.
+//
+// Deprecated: BSONAppender is unused and will be removed in Go Driver 2.0.
+type BSONAppender interface {
+	AppendBSON([]byte, interface{}) ([]byte, error)
+}
+
+// BSONAppenderFunc is an adapter function that allows any function that
+// satisfies the AppendBSON method signature to be used where a BSONAppender is
+// used.
+//
+// Deprecated: BSONAppenderFunc is unused and will be removed in Go Driver 2.0.
+type BSONAppenderFunc func([]byte, interface{}) ([]byte, error)
+
+// AppendBSON implements the BSONAppender interface
+//
+// Deprecated: BSONAppenderFunc is unused and will be removed in Go Driver 2.0.
+func (baf BSONAppenderFunc) AppendBSON(dst []byte, val interface{}) ([]byte, error) {
+	return baf(dst, val)
 }
 
 // MarshalError is returned when attempting to marshal a value into a document
@@ -53,17 +81,20 @@ func (me MarshalError) Error() string {
 type Pipeline []bson.D
 
 // bvwPool is a pool of BSON value writers. BSON value writers
-var bvwPool = bson.NewValueWriterPool()
+var bvwPool = bsonrw.NewBSONValueWriterPool()
 
 // getEncoder takes a writer, BSON options, and a BSON registry and returns a properly configured
 // bson.Encoder that writes to the given writer.
 func getEncoder(
 	w io.Writer,
 	opts *options.BSONOptions,
-	reg *bson.Registry,
+	reg *bsoncodec.Registry,
 ) (*bson.Encoder, error) {
 	vw := bvwPool.Get(w)
-	enc := bson.NewEncoder(vw)
+	enc, err := bson.NewEncoder(vw)
+	if err != nil {
+		return nil, err
+	}
 
 	if opts != nil {
 		if opts.ErrorOnInlineDuplicates {
@@ -93,7 +124,10 @@ func getEncoder(
 	}
 
 	if reg != nil {
-		enc.SetRegistry(reg)
+		// TODO:(GODRIVER-2719): Remove error handling.
+		if err := enc.SetRegistry(reg); err != nil {
+			return nil, err
+		}
 	}
 
 	return enc, nil
@@ -101,7 +135,7 @@ func getEncoder(
 
 // newEncoderFn will return a function for constructing an encoder based on the
 // provided codec options.
-func newEncoderFn(opts *options.BSONOptions, registry *bson.Registry) codecutil.EncoderFn {
+func newEncoderFn(opts *options.BSONOptions, registry *bsoncodec.Registry) codecutil.EncoderFn {
 	return func(w io.Writer) (*bson.Encoder, error) {
 		return getEncoder(w, opts, registry)
 	}
@@ -115,7 +149,7 @@ func newEncoderFn(opts *options.BSONOptions, registry *bson.Registry) codecutil.
 func marshal(
 	val interface{},
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 ) (bsoncore.Document, error) {
 	if registry == nil {
 		registry = bson.DefaultRegistry
@@ -144,16 +178,16 @@ func marshal(
 
 // ensureID inserts the given ObjectID as an element named "_id" at the
 // beginning of the given BSON document if there is not an "_id" already.
-// If the given ObjectID is bson.NilObjectID, a new object ID will be
+// If the given ObjectID is primitive.NilObjectID, a new object ID will be
 // generated with time.Now().
 //
 // If there is already an element named "_id", the document is not modified. It
 // returns the resulting document and the decoded Go value of the "_id" element.
 func ensureID(
 	doc bsoncore.Document,
-	oid bson.ObjectID,
+	oid primitive.ObjectID,
 	bsonOpts *options.BSONOptions,
-	reg *bson.Registry,
+	reg *bsoncodec.Registry,
 ) (bsoncore.Document, interface{}, error) {
 	if reg == nil {
 		reg = bson.DefaultRegistry
@@ -166,7 +200,10 @@ func ensureID(
 		var id struct {
 			ID interface{} `bson:"_id"`
 		}
-		dec := getDecoder(doc, bsonOpts, reg)
+		dec, err := getDecoder(doc, bsonOpts, reg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error configuring BSON decoder: %w", err)
+		}
 		err = dec.Decode(&id)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error unmarshaling BSON document: %w", err)
@@ -186,7 +223,7 @@ func ensureID(
 	doc = make(bsoncore.Document, 0, len(olddoc)+extraSpace)
 	_, doc = bsoncore.ReserveLength(doc)
 	if oid.IsZero() {
-		oid = bson.NewObjectID()
+		oid = primitive.NewObjectID()
 	}
 	doc = bsoncore.AppendObjectIDElement(doc, "_id", oid)
 
@@ -221,16 +258,16 @@ func ensureNoDollarKey(doc bsoncore.Document) error {
 func marshalAggregatePipeline(
 	pipeline interface{},
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 ) (bsoncore.Document, bool, error) {
 	switch t := pipeline.(type) {
-	case bson.ValueMarshaler:
+	case bsoncodec.ValueMarshaler:
 		btype, val, err := t.MarshalBSONValue()
 		if err != nil {
 			return nil, false, err
 		}
-		if typ := bson.Type(btype); typ != bson.TypeArray {
-			return nil, false, fmt.Errorf("ValueMarshaler returned a %v, but was expecting %v", typ, bson.TypeArray)
+		if btype != bsontype.Array {
+			return nil, false, fmt.Errorf("ValueMarshaler returned a %v, but was expecting %v", btype, bsontype.Array)
 		}
 
 		var hasOutputStage bool
@@ -309,7 +346,7 @@ func marshalAggregatePipeline(
 func marshalUpdateValue(
 	update interface{},
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 	dollarKeysAllowed bool,
 ) (bsoncore.Value, error) {
 	documentCheckerFunc := ensureDollarKey
@@ -322,8 +359,8 @@ func marshalUpdateValue(
 	switch t := update.(type) {
 	case nil:
 		return u, ErrNilDocument
-	case bson.D:
-		u.Type = bsoncore.TypeEmbeddedDocument
+	case primitive.D:
+		u.Type = bsontype.EmbeddedDocument
 		u.Data, err = marshal(update, bsonOpts, registry)
 		if err != nil {
 			return u, err
@@ -331,34 +368,32 @@ func marshalUpdateValue(
 
 		return u, documentCheckerFunc(u.Data)
 	case bson.Raw:
-		u.Type = bsoncore.TypeEmbeddedDocument
+		u.Type = bsontype.EmbeddedDocument
 		u.Data = t
 		return u, documentCheckerFunc(u.Data)
 	case bsoncore.Document:
-		u.Type = bsoncore.TypeEmbeddedDocument
+		u.Type = bsontype.EmbeddedDocument
 		u.Data = t
 		return u, documentCheckerFunc(u.Data)
 	case []byte:
-		u.Type = bsoncore.TypeEmbeddedDocument
+		u.Type = bsontype.EmbeddedDocument
 		u.Data = t
 		return u, documentCheckerFunc(u.Data)
-	case bson.Marshaler:
-		u.Type = bsoncore.TypeEmbeddedDocument
+	case bsoncodec.Marshaler:
+		u.Type = bsontype.EmbeddedDocument
 		u.Data, err = t.MarshalBSON()
 		if err != nil {
 			return u, err
 		}
 
 		return u, documentCheckerFunc(u.Data)
-	case bson.ValueMarshaler:
-		tt, data, err := t.MarshalBSONValue()
-		u.Type = bsoncore.Type(tt)
-		u.Data = data
+	case bsoncodec.ValueMarshaler:
+		u.Type, u.Data, err = t.MarshalBSONValue()
 		if err != nil {
 			return u, err
 		}
-		if u.Type != bsoncore.TypeArray && u.Type != bsoncore.TypeEmbeddedDocument {
-			return u, fmt.Errorf("ValueMarshaler returned a %v, but was expecting %v or %v", u.Type, bsoncore.TypeArray, bsoncore.TypeEmbeddedDocument)
+		if u.Type != bsontype.Array && u.Type != bsontype.EmbeddedDocument {
+			return u, fmt.Errorf("ValueMarshaler returned a %v, but was expecting %v or %v", u.Type, bsontype.Array, bsontype.EmbeddedDocument)
 		}
 		return u, err
 	default:
@@ -367,7 +402,7 @@ func marshalUpdateValue(
 			return u, fmt.Errorf("can only marshal slices and arrays into update pipelines, but got %v", val.Kind())
 		}
 		if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
-			u.Type = bsoncore.TypeEmbeddedDocument
+			u.Type = bsontype.EmbeddedDocument
 			u.Data, err = marshal(update, bsonOpts, registry)
 			if err != nil {
 				return u, err
@@ -376,7 +411,7 @@ func marshalUpdateValue(
 			return u, documentCheckerFunc(u.Data)
 		}
 
-		u.Type = bsoncore.TypeArray
+		u.Type = bsontype.Array
 		aidx, arr := bsoncore.AppendArrayStart(nil)
 		valLen := val.Len()
 		for idx := 0; idx < valLen; idx++ {
@@ -399,7 +434,7 @@ func marshalUpdateValue(
 func marshalValue(
 	val interface{},
 	bsonOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 ) (bsoncore.Value, error) {
 	return codecutil.MarshalValue(val, newEncoderFn(bsonOpts, registry))
 }
@@ -408,7 +443,7 @@ func marshalValue(
 func countDocumentsAggregatePipeline(
 	filter interface{},
 	encOpts *options.BSONOptions,
-	registry *bson.Registry,
+	registry *bsoncodec.Registry,
 	opts *options.CountOptions,
 ) (bsoncore.Document, error) {
 	filterDoc, err := marshal(filter, encOpts, registry)

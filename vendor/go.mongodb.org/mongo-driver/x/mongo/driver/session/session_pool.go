@@ -10,8 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 )
 
 // Node represents a server session in a linked list
@@ -65,7 +65,7 @@ func (p *Pool) updateTimeout() {
 	case newDesc := <-p.descChan:
 		p.latestTopology = topologyDescription{
 			kind:           newDesc.Kind,
-			timeoutMinutes: newDesc.SessionTimeoutMinutes,
+			timeoutMinutes: newDesc.SessionTimeoutMinutesPtr,
 		}
 	default:
 		// no new description waiting

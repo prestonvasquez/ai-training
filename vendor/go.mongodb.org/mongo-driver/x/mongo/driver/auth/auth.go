@@ -13,9 +13,8 @@ import (
 	"net/http"
 
 	"go.mongodb.org/mongo-driver/mongo/address"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/mnet"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/operation"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
@@ -77,11 +76,7 @@ var _ driver.Handshaker = (*authHandshaker)(nil)
 
 // GetHandshakeInformation performs the initial MongoDB handshake to retrieve the required information for the provided
 // connection.
-func (ah *authHandshaker) GetHandshakeInformation(
-	ctx context.Context,
-	addr address.Address,
-	conn *mnet.Connection,
-) (driver.HandshakeInformation, error) {
+func (ah *authHandshaker) GetHandshakeInformation(ctx context.Context, addr address.Address, conn driver.Connection) (driver.HandshakeInformation, error) {
 	if ah.wrapped != nil {
 		return ah.wrapped.GetHandshakeInformation(ctx, addr, conn)
 	}
@@ -120,17 +115,19 @@ func (ah *authHandshaker) GetHandshakeInformation(
 }
 
 // FinishHandshake performs authentication for conn if necessary.
-func (ah *authHandshaker) FinishHandshake(ctx context.Context, conn *mnet.Connection) error {
+func (ah *authHandshaker) FinishHandshake(ctx context.Context, conn driver.Connection) error {
 	performAuth := ah.options.PerformAuthentication
 	if performAuth == nil {
 		performAuth = func(serv description.Server) bool {
 			// Authentication is possible against all server types except arbiters
-			return serv.Kind != description.ServerKindRSArbiter
+			return serv.Kind != description.RSArbiter
 		}
 	}
 
-	if performAuth(conn.Description()) && ah.options.Authenticator != nil {
+	desc := conn.Description()
+	if performAuth(desc) && ah.options.Authenticator != nil {
 		cfg := &Config{
+			Description:   desc,
 			Connection:    conn,
 			ClusterClock:  ah.options.ClusterClock,
 			HandshakeInfo: ah.handshakeInfo,
@@ -175,7 +172,8 @@ func Handshaker(h driver.Handshaker, options *HandshakeOptions) driver.Handshake
 
 // Config holds the information necessary to perform an authentication attempt.
 type Config struct {
-	Connection    *mnet.Connection
+	Description   description.Server
+	Connection    driver.Connection
 	ClusterClock  *session.ClusterClock
 	HandshakeInfo driver.HandshakeInformation
 	ServerAPI     *driver.ServerAPIOptions

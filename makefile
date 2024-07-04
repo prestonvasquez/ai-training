@@ -23,9 +23,6 @@ example5:
 
 # ==============================================================================
 # Install dependencies
-#   https://ollama.com/
-#   https://github.com/ollama/ollama/tree/main
-#   https://github.com/tmc/langchaingo/
 
 install:
 	brew install mongosh
@@ -33,6 +30,9 @@ install:
 docker:
 	docker pull mongodb/mongodb-atlas-local
 	docker pull ollama/ollama
+
+# ==============================================================================
+# Manage project
 
 dev-up:
 	docker-compose -f zarf/docker/compose.yaml up
@@ -50,6 +50,9 @@ clean-data:
 
 mongo:
 	mongosh -u ardan -p ardan mongodb://localhost:27017
+
+ollama-pull:
+	ollama pull mxbai-embed-large
 
 # ==============================================================================
 # Modules support

@@ -25,7 +25,7 @@ type batchCursor interface {
 
 	// Batch will return a DocumentSequence for the current batch of documents. The returned
 	// DocumentSequence is only valid until the next call to Next or Close.
-	Batch() *bsoncore.Iterator
+	Batch() *bsoncore.DocumentSequence
 
 	// Server returns a pointer to the cursor's server.
 	Server() driver.Server
@@ -40,13 +40,13 @@ type batchCursor interface {
 	// the cursor that implements it.
 	SetBatchSize(int32)
 
-	// SetMaxAwaitTime will set the maximum amount of time the server will allow
+	// SetMaxTime will set the maximum amount of time the server will allow
 	// the operations to execute. The server will error if this field is set
 	// but the cursor is not configured with awaitData=true.
 	//
 	// The time.Duration value passed by this setter will be converted and
 	// rounded down to the nearest millisecond.
-	SetMaxAwaitTime(time.Duration)
+	SetMaxTime(time.Duration)
 
 	// SetComment will set a user-configurable comment that can be used to
 	// identify the operation in server logs.

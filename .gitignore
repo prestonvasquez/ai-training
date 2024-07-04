@@ -5,6 +5,7 @@
 # Data files
 zarf/data/example3*
 db_data/
+ollama/
 
 # Binaries for programs and plugins
 *.exe

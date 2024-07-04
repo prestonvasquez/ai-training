@@ -11,14 +11,15 @@ import (
 	"errors"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/internal/driverutil"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
@@ -28,8 +29,9 @@ type Aggregate struct {
 	batchSize                *int32
 	bypassDocumentValidation *bool
 	collation                bsoncore.Document
-	comment                  bsoncore.Value
+	comment                  *string
 	hint                     bsoncore.Value
+	maxTime                  *time.Duration
 	pipeline                 bsoncore.Document
 	session                  *session.Client
 	clock                    *session.ClusterClock
@@ -48,6 +50,7 @@ type Aggregate struct {
 	hasOutputStage           bool
 	customOptions            map[string]bsoncore.Value
 	timeout                  *time.Duration
+	omitCSOTMaxTimeMS        bool
 
 	result driver.CursorResponse
 }
@@ -108,16 +111,18 @@ func (a *Aggregate) Execute(ctx context.Context) error {
 		MinimumWriteConcernWireVersion: 5,
 		ServerAPI:                      a.serverAPI,
 		IsOutputAggregate:              a.hasOutputStage,
+		MaxTime:                        a.maxTime,
 		Timeout:                        a.timeout,
 		Name:                           driverutil.AggregateOp,
+		OmitCSOTMaxTimeMS:              a.omitCSOTMaxTimeMS,
 	}.Execute(ctx)
 
 }
 
 func (a *Aggregate) command(dst []byte, desc description.SelectedServer) ([]byte, error) {
-	header := bsoncore.Value{Type: bsoncore.TypeString, Data: bsoncore.AppendString(nil, a.collection)}
+	header := bsoncore.Value{Type: bsontype.String, Data: bsoncore.AppendString(nil, a.collection)}
 	if a.collection == "" {
-		header = bsoncore.Value{Type: bsoncore.TypeInt32, Data: []byte{0x01, 0x00, 0x00, 0x00}}
+		header = bsoncore.Value{Type: bsontype.Int32, Data: []byte{0x01, 0x00, 0x00, 0x00}}
 	}
 	dst = bsoncore.AppendValueElement(dst, "aggregate", header)
 
@@ -134,15 +139,17 @@ func (a *Aggregate) command(dst []byte, desc description.SelectedServer) ([]byte
 		dst = bsoncore.AppendBooleanElement(dst, "bypassDocumentValidation", *a.bypassDocumentValidation)
 	}
 	if a.collation != nil {
-		if desc.WireVersion == nil || !driverutil.VersionRangeIncludes(*desc.WireVersion, 5) {
+
+		if desc.WireVersion == nil || !desc.WireVersion.Includes(5) {
 			return nil, errors.New("the 'collation' command parameter requires a minimum server wire version of 5")
 		}
 		dst = bsoncore.AppendDocumentElement(dst, "collation", a.collation)
 	}
-	if a.comment.Type != bsoncore.Type(0) {
-		dst = bsoncore.AppendValueElement(dst, "comment", a.comment)
+	if a.comment != nil {
+
+		dst = bsoncore.AppendStringElement(dst, "comment", *a.comment)
 	}
-	if a.hint.Type != bsoncore.Type(0) {
+	if a.hint.Type != bsontype.Type(0) {
 
 		dst = bsoncore.AppendValueElement(dst, "hint", a.hint)
 	}
@@ -202,13 +209,13 @@ func (a *Aggregate) Collation(collation bsoncore.Document) *Aggregate {
 	return a
 }
 
-// Comment sets a value to help trace an operation.
-func (a *Aggregate) Comment(comment bsoncore.Value) *Aggregate {
+// Comment specifies an arbitrary string to help trace the operation through the database profiler, currentOp, and logs.
+func (a *Aggregate) Comment(comment string) *Aggregate {
 	if a == nil {
 		a = new(Aggregate)
 	}
 
-	a.comment = comment
+	a.comment = &comment
 	return a
 }
 
@@ -219,6 +226,16 @@ func (a *Aggregate) Hint(hint bsoncore.Value) *Aggregate {
 	}
 
 	a.hint = hint
+	return a
+}
+
+// MaxTime specifies the maximum amount of time to allow the query to run on the server.
+func (a *Aggregate) MaxTime(maxTime *time.Duration) *Aggregate {
+	if a == nil {
+		a = new(Aggregate)
+	}
+
+	a.maxTime = maxTime
 	return a
 }
 
@@ -402,5 +419,17 @@ func (a *Aggregate) Timeout(timeout *time.Duration) *Aggregate {
 	}
 
 	a.timeout = timeout
+	return a
+}
+
+// OmitCSOTMaxTimeMS omits the automatically-calculated "maxTimeMS" from the
+// command when CSOT is enabled. It does not effect "maxTimeMS" set by
+// [Aggregate.MaxTime].
+func (a *Aggregate) OmitCSOTMaxTimeMS(omit bool) *Aggregate {
+	if a == nil {
+		a = new(Aggregate)
+	}
+
+	a.omitCSOTMaxTimeMS = omit
 	return a
 }

@@ -7,7 +7,7 @@
 package options
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -33,7 +33,7 @@ type DatabaseOptions struct {
 
 	// Registry is the BSON registry to marshal and unmarshal documents for operations executed on the Database. The default value
 	// is nil, which means that the registry of the Client used to configure the Database will be used.
-	Registry *bson.Registry
+	Registry *bsoncodec.Registry
 }
 
 // Database creates a new DatabaseOptions instance.
@@ -66,7 +66,39 @@ func (d *DatabaseOptions) SetBSONOptions(opts *BSONOptions) *DatabaseOptions {
 }
 
 // SetRegistry sets the value for the Registry field.
-func (d *DatabaseOptions) SetRegistry(r *bson.Registry) *DatabaseOptions {
+func (d *DatabaseOptions) SetRegistry(r *bsoncodec.Registry) *DatabaseOptions {
 	d.Registry = r
+	return d
+}
+
+// MergeDatabaseOptions combines the given DatabaseOptions instances into a single DatabaseOptions in a last-one-wins
+// fashion.
+//
+// Deprecated: Merging options structs will not be supported in Go Driver 2.0. Users should create a
+// single options struct instead.
+func MergeDatabaseOptions(opts ...*DatabaseOptions) *DatabaseOptions {
+	d := Database()
+
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		if opt.ReadConcern != nil {
+			d.ReadConcern = opt.ReadConcern
+		}
+		if opt.WriteConcern != nil {
+			d.WriteConcern = opt.WriteConcern
+		}
+		if opt.ReadPreference != nil {
+			d.ReadPreference = opt.ReadPreference
+		}
+		if opt.Registry != nil {
+			d.Registry = opt.Registry
+		}
+		if opt.BSONOptions != nil {
+			d.BSONOptions = opt.BSONOptions
+		}
+	}
+
 	return d
 }

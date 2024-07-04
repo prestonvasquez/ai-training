@@ -14,12 +14,13 @@ import (
 	"strconv"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/internal/serverselector"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/operation"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
@@ -79,41 +80,32 @@ func (iv IndexView) List(ctx context.Context, opts ...*options.ListIndexesOption
 		closeImplicitSession(sess)
 		return nil, err
 	}
-	var selector description.ServerSelector
 
-	selector = &serverselector.Composite{
-		Selectors: []description.ServerSelector{
-			&serverselector.ReadPref{ReadPref: readpref.Primary()},
-			&serverselector.Latency{Latency: iv.coll.client.localThreshold},
-		},
-	}
-
+	selector := description.CompositeSelector([]description.ServerSelector{
+		description.ReadPrefSelector(readpref.Primary()),
+		description.LatencySelector(iv.coll.client.localThreshold),
+	})
 	selector = makeReadPrefSelector(sess, selector, iv.coll.client.localThreshold)
+
+	// TODO(GODRIVER-3038): This operation should pass CSE to the ListIndexes
+	// Crypt setter to be applied to the operation.
 	op := operation.NewListIndexes().
 		Session(sess).CommandMonitor(iv.coll.client.monitor).
 		ServerSelector(selector).ClusterClock(iv.coll.client.clock).
 		Database(iv.coll.db.name).Collection(iv.coll.name).
 		Deployment(iv.coll.client.deployment).ServerAPI(iv.coll.client.serverAPI).
-		Timeout(iv.coll.client.timeout).Crypt(iv.coll.client.cryptFLE)
+		Timeout(iv.coll.client.timeout)
 
 	cursorOpts := iv.coll.client.createBaseCursorOptions()
 
 	cursorOpts.MarshalValueEncoderFn = newEncoderFn(iv.coll.bsonOpts, iv.coll.registry)
 
-	lio := options.ListIndexes()
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.BatchSize != nil {
-			lio.BatchSize = opt.BatchSize
-		}
-	}
+	lio := options.MergeListIndexesOptions(opts...)
 	if lio.BatchSize != nil {
 		op = op.BatchSize(*lio.BatchSize)
 		cursorOpts.BatchSize = *lio.BatchSize
 	}
-
+	op = op.MaxTime(lio.MaxTime)
 	retry := driver.RetryNone
 	if iv.coll.client.retryReads {
 		retry = driver.RetryOncePerCommand
@@ -147,21 +139,20 @@ func (iv IndexView) ListSpecifications(ctx context.Context, opts ...*options.Lis
 		return nil, err
 	}
 
-	var resp []indexListSpecificationResponse
-
-	if err := cursor.All(ctx, &resp); err != nil {
+	var results []*IndexSpecification
+	err = cursor.All(ctx, &results)
+	if err != nil {
 		return nil, err
 	}
 
-	namespace := iv.coll.db.Name() + "." + iv.coll.Name()
-
-	specs := make([]*IndexSpecification, len(resp))
-	for idx, spec := range resp {
-		specs[idx] = newIndexSpecificationFromResponse(spec)
-		specs[idx].Namespace = namespace
+	ns := iv.coll.db.Name() + "." + iv.coll.Name()
+	for _, res := range results {
+		// Pre-4.4 servers report a namespace in their responses, so we only set Namespace manually if it was not in
+		// the response.
+		res.Namespace = ns
 	}
 
-	return specs, nil
+	return results, nil
 }
 
 // CreateOne executes a createIndexes command to create an index on the collection and returns the name of the new
@@ -255,27 +246,23 @@ func (iv IndexView) CreateMany(ctx context.Context, models []IndexModel, opts ..
 	if sess.TransactionRunning() {
 		wc = nil
 	}
-	if !wc.Acknowledged() {
+	if !writeconcern.AckWrite(wc) {
 		sess = nil
 	}
 
 	selector := makePinnedSelector(sess, iv.coll.writeSelector)
 
-	option := options.CreateIndexes()
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		if opt.CommitQuorum != nil {
-			option.CommitQuorum = opt.CommitQuorum
-		}
-	}
+	option := options.MergeCreateIndexesOptions(opts...)
 
+	// TODO(GODRIVER-3038): This operation should pass CSE to the CreateIndexes
+	// Crypt setter to be applied to the operation.
+	//
+	// This was added in GODRIVER-2413 for the 2.0 major release.
 	op := operation.NewCreateIndexes(indexes).
 		Session(sess).WriteConcern(wc).ClusterClock(iv.coll.client.clock).
 		Database(iv.coll.db.name).Collection(iv.coll.name).CommandMonitor(iv.coll.client.monitor).
 		Deployment(iv.coll.client.deployment).ServerSelector(selector).ServerAPI(iv.coll.client.serverAPI).
-		Timeout(iv.coll.client.timeout).Crypt(iv.coll.client.cryptFLE)
+		Timeout(iv.coll.client.timeout).MaxTime(option.MaxTime)
 	if option.CommitQuorum != nil {
 		commitQuorum, err := marshalValue(option.CommitQuorum, iv.coll.bsonOpts, iv.coll.registry)
 		if err != nil {
@@ -296,6 +283,9 @@ func (iv IndexView) CreateMany(ctx context.Context, models []IndexModel, opts ..
 
 func (iv IndexView) createOptionsDoc(opts *options.IndexOptions) (bsoncore.Document, error) {
 	optsDoc := bsoncore.Document{}
+	if opts.Background != nil {
+		optsDoc = bsoncore.AppendBooleanElement(optsDoc, "background", *opts.Background)
+	}
 	if opts.ExpireAfterSeconds != nil {
 		optsDoc = bsoncore.AppendInt32Element(optsDoc, "expireAfterSeconds", *opts.ExpireAfterSeconds)
 	}
@@ -377,7 +367,7 @@ func (iv IndexView) createOptionsDoc(opts *options.IndexOptions) (bsoncore.Docum
 	return optsDoc, nil
 }
 
-func (iv IndexView) drop(ctx context.Context, name string, _ ...*options.DropIndexesOptions) (bson.Raw, error) {
+func (iv IndexView) drop(ctx context.Context, name string, opts ...*options.DropIndexesOptions) (bson.Raw, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -397,18 +387,22 @@ func (iv IndexView) drop(ctx context.Context, name string, _ ...*options.DropInd
 	if sess.TransactionRunning() {
 		wc = nil
 	}
-	if !wc.Acknowledged() {
+	if !writeconcern.AckWrite(wc) {
 		sess = nil
 	}
 
 	selector := makePinnedSelector(sess, iv.coll.writeSelector)
 
+	dio := options.MergeDropIndexesOptions(opts...)
+
+	// TODO(GODRIVER-3038): This operation should pass CSE to the DropIndexes
+	// Crypt setter to be applied to the operation.
 	op := operation.NewDropIndexes(name).
 		Session(sess).WriteConcern(wc).CommandMonitor(iv.coll.client.monitor).
 		ServerSelector(selector).ClusterClock(iv.coll.client.clock).
 		Database(iv.coll.db.name).Collection(iv.coll.name).
 		Deployment(iv.coll.client.deployment).ServerAPI(iv.coll.client.serverAPI).
-		Timeout(iv.coll.client.timeout).Crypt(iv.coll.client.cryptFLE)
+		Timeout(iv.coll.client.timeout).MaxTime(dio.MaxTime)
 
 	err = op.Execute(ctx)
 	if err != nil {
@@ -441,18 +435,16 @@ func (iv IndexView) DropOne(ctx context.Context, name string, opts ...*options.D
 	return iv.drop(ctx, name, opts...)
 }
 
-// DropAll executes a dropIndexes operation to drop all indexes on the
-// collection.
+// DropAll executes a dropIndexes operation to drop all indexes on the collection. If the operation succeeds, this
+// returns a BSON document in the form {nIndexesWas: <int32>}. The "nIndexesWas" field in the response contains the
+// number of indexes that existed prior to the drop.
 //
-// The opts parameter can be used to specify options for this operation (see the
-// options.DropIndexesOptions documentation).
+// The opts parameter can be used to specify options for this operation (see the options.DropIndexesOptions
+// documentation).
 //
-// For more information about the command, see
-// https://www.mongodb.com/docs/manual/reference/command/dropIndexes/.
-func (iv IndexView) DropAll(ctx context.Context, opts ...*options.DropIndexesOptions) error {
-	_, err := iv.drop(ctx, "*", opts...)
-
-	return err
+// For more information about the command, see https://www.mongodb.com/docs/manual/reference/command/dropIndexes/.
+func (iv IndexView) DropAll(ctx context.Context, opts ...*options.DropIndexesOptions) (bson.Raw, error) {
+	return iv.drop(ctx, "*", opts...)
 }
 
 func getOrGenerateIndexName(keySpecDocument bsoncore.Document, model IndexModel) (string, error) {
@@ -489,11 +481,11 @@ func getOrGenerateIndexName(keySpecDocument bsoncore.Document, model IndexModel)
 
 		bsonValue := elem.Value()
 		switch bsonValue.Type {
-		case bsoncore.TypeInt32:
+		case bsontype.Int32:
 			value = fmt.Sprintf("%d", bsonValue.Int32())
-		case bsoncore.TypeInt64:
+		case bsontype.Int64:
 			value = fmt.Sprintf("%d", bsonValue.Int64())
-		case bsoncore.TypeString:
+		case bsontype.String:
 			value = bsonValue.StringValue()
 		default:
 			return "", ErrInvalidIndexValue
