@@ -1,3 +1,9 @@
+// This example shows you how to use an LLM to create vector embeddings and
+// get the same results from the hand crafted solution.
+//
+// This requires running the following commands:
+// $ make dev-up		// This starts the ollama service in docker compose.
+// $ make ollama-pull	// This pulls down the model we will use.
 package main
 
 import (

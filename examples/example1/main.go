@@ -1,3 +1,6 @@
+// This example shows you what a vector and embedding is by hand crafting
+// a relationship of data. It also shows you how cosine similarity works between
+// different vectors.
 package main
 
 import (

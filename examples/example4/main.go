@@ -1,3 +1,8 @@
+// This example show you how to use MongoDB as a vector database to perform
+// a nearest neighbor vector search.
+//
+// This requires running the following commands:
+// $ make dev-up		// This starts the mongodb service in docker compose.
 package main
 
 import (
@@ -9,7 +14,23 @@ import (
 	"github.com/ardanlabs/vector/foundation/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+type document struct {
+	ID        int       `bson:"id"`
+	Text      string    `bson:"text"`
+	Embedding []float64 `bson:"embedding"`
+}
+
+type searchResult struct {
+	ID        int       `bson:"id"`
+	Text      string    `bson:"text"`
+	Embedding []float64 `bson:"embedding"`
+	Score     float64   `bson:"score"`
+}
+
+// =============================================================================
 
 func main() {
 	if err := run(); err != nil {
@@ -73,28 +94,42 @@ func run() error {
 
 	fmt.Println("---- VECTOR QUERY ----")
 
-	if err := queryDocuments(ctx, col); err != nil {
+	results, err := vectorSearch(ctx, col, []float64{1.2, 2.2, 3.2, 4.2}, 10)
+	if err != nil {
 		return fmt.Errorf("storeDocuments: %w", err)
 	}
+
+	fmt.Printf("%#v\n", results)
 
 	return nil
 }
 
 func storeDocuments(ctx context.Context, col *mongo.Collection) error {
+
+	// If these records already exist, we don't need to add them again.
 	findRes, err := col.Find(ctx, bson.D{})
 	if err != nil {
 		return fmt.Errorf("find: %w", err)
 	}
+	defer findRes.Close(ctx)
 
 	if findRes.RemainingBatchLength() != 0 {
 		return nil
 	}
 
-	type document struct {
-		ID        int       `bson:"id"`
-		Text      string    `bson:"text"`
-		Embedding []float64 `bson:"embedding"`
+	// -------------------------------------------------------------------------
+
+	// Apply a unique index just to be safe.
+	unique := true
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "id", Value: 1}},
+		Options: &options.IndexOptions{Unique: &unique},
 	}
+	col.Indexes().CreateOne(ctx, indexModel)
+
+	// -------------------------------------------------------------------------
+
+	// Let's add two documents to the database.
 
 	d1 := document{
 		ID:        1,
@@ -102,30 +137,23 @@ func storeDocuments(ctx context.Context, col *mongo.Collection) error {
 		Embedding: []float64{1.0, 2.0, 3.0, 4.0},
 	}
 
-	res2, err := col.InsertOne(ctx, d1)
-	if err != nil {
-		return fmt.Errorf("insert: %w", err)
-	}
-
-	fmt.Println(res2.InsertedID)
-
 	d2 := document{
 		ID:        2,
 		Text:      "this is text 2",
 		Embedding: []float64{1.5, 2.5, 3.5, 4.5},
 	}
 
-	res3, err := col.InsertOne(ctx, d2)
+	res, err := col.InsertMany(ctx, []any{d1, d2})
 	if err != nil {
 		return fmt.Errorf("insert: %w", err)
 	}
 
-	fmt.Println(res3.InsertedID)
+	fmt.Println(res.InsertedIDs)
 
 	return nil
 }
 
-func queryDocuments(ctx context.Context, col *mongo.Collection) error {
+func vectorSearch(ctx context.Context, col *mongo.Collection, vector []float64, limit int) ([]searchResult, error) {
 	/*
 		db.book.aggregate([
 			{
@@ -150,6 +178,7 @@ func queryDocuments(ctx context.Context, col *mongo.Collection) error {
 		])
 	*/
 
+	// We want to find the nearest neighbors from the specified vector.
 	pipeline := mongo.Pipeline{
 		{{
 			Key: "$vectorSearch",
@@ -157,14 +186,15 @@ func queryDocuments(ctx context.Context, col *mongo.Collection) error {
 				"index":         "vector_index",
 				"exact":         false,
 				"path":          "embedding",
-				"queryVector":   []float64{1.2, 2.2, 3.2, 4.2},
-				"numCandidates": 10,
-				"limit":         10,
+				"queryVector":   vector,
+				"numCandidates": limit,
+				"limit":         limit,
 			}},
 		},
 		{{
 			Key: "$project",
 			Value: bson.M{
+				"id":        1,
 				"text":      1,
 				"embedding": 1,
 				"score": bson.M{
@@ -176,24 +206,14 @@ func queryDocuments(ctx context.Context, col *mongo.Collection) error {
 
 	cur, err := col.Aggregate(ctx, pipeline)
 	if err != nil {
-		return fmt.Errorf("aggregate: %w", err)
-	}
-
-	fmt.Println("COUNT :", cur.RemainingBatchLength())
-
-	var results []struct {
-		ID        int       `bson:"id"`
-		Text      string    `bson:"text"`
-		Embedding []float64 `bson:"embedding"`
-		Score     float64   `bson:"score"`
-	}
-
-	if err := cur.All(ctx, &results); err != nil {
-		return fmt.Errorf("all: %w", err)
+		return nil, fmt.Errorf("aggregate: %w", err)
 	}
 	defer cur.Close(ctx)
 
-	fmt.Println("RESULT:", results)
+	var results []searchResult
+	if err := cur.All(ctx, &results); err != nil {
+		return nil, fmt.Errorf("all: %w", err)
+	}
 
-	return nil
+	return results, nil
 }

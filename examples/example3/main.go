@@ -1,3 +1,11 @@
+// This example shows you how to train the word2vec model with your own content
+// and leverage the model's nearest neighbor support. It also shows you how to
+// use the cosine similarity algorithm to test similarity.
+//
+// This requires running the following commands:
+// $ make download-data	// This will download and uncompress the data file:
+//
+//	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
 package main
 
 import (
@@ -12,14 +20,6 @@ import (
 	"github.com/ardanlabs/vector/foundation/vector"
 	"github.com/ardanlabs/vector/foundation/word2vec"
 )
-
-/*
-	https://www.youtube.com/watch?v=Q2NtCcqmIww&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=42
-	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
-
-	NOTE: You must run `make download-data` to get the data file need to run
-	      this example.
-*/
 
 func main() {
 	if err := run(); err != nil {
