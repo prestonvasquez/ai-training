@@ -1,6 +1,30 @@
 // This example shows you what a vector and embedding is by hand crafting
 // a relationship of data. It also shows you how cosine similarity works between
 // different vectors.
+//
+// # Running the example:
+//
+//   $ make example1
+//
+// # Extra reading and watching:
+//
+//   https://www.youtube.com/watch?v=72XgD322wZ8
+//
+// # Notes:
+//
+//   "embeddings" emphasizes the notion of representing data in a meaningful and
+//   structured way (via features).
+//
+//   "vectors" refers to the numerical representation of those features.
+//
+//   Fields are not hand crafted like in this example. Here, we hand coded
+//   the features and the values. To do this at scale, this needs to be
+//   automated. This is done during neural network training and you won't
+//   know what the features are. But it all works.
+//
+//   The position of a data point in the learned vector space is referred to as
+//   its embedding.
+
 package main
 
 import (
@@ -8,24 +32,6 @@ import (
 
 	"github.com/ardanlabs/vector/foundation/vector"
 )
-
-/*
-	https://www.youtube.com/watch?v=72XgD322wZ8
-	https://www.youtube.com/watch?v=Fuw0wv3X-0o&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=40
-	https://www.youtube.com/watch?v=hQwFeIupNP0&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=41
-	https://machinelearningmastery.com/what-are-word-embeddings/
-	https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/
-
-	"embeddings" emphasizes the notion of representing data in a meaningful and
-	structured way (via features).
-
-	"vectors" refers to the numerical representation of those features.
-
-	Fields are not hand crafted like in this example. Here, we hand coded
-	the features and the values. To do this at scale, this needs to be
-	automated. This is done during neural network training and you won't
-	know what the features are. But it all works.
-*/
 
 type data struct {
 	Name      string
@@ -67,12 +73,16 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
+	// Display the data points.
 	fmt.Print("\n")
 	for _, v := range dataPoints {
 		fmt.Printf("%s: %v\n", v.(data).Name, v)
 	}
 	fmt.Print("\n")
 
+	// Compare each data point to every other by performing a cosine
+	// similarity comparison. This requires converting each data point
+	// into a vector.
 	for _, target := range dataPoints {
 		results := vector.Similarity(target, dataPoints...)
 
@@ -87,11 +97,12 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
-	// King - Man + Woman ~= Queen
-
+	// You can perform vector math by adding and subtracting vectors.
 	kingSubMan := vector.Sub(dataPoints[3].Vector(), dataPoints[1].Vector())
-	plusWoman := vector.Add(kingSubMan, dataPoints[2].Vector())
+	kingSubManPlusWoman := vector.Add(kingSubMan, dataPoints[2].Vector())
+	queen := dataPoints[4].Vector()
 
-	result := vector.CosineSimilarity(plusWoman, dataPoints[4].Vector())
+	// Now compare a (king - Man + Woman) to a Queen.
+	result := vector.CosineSimilarity(kingSubManPlusWoman, queen)
 	fmt.Printf("King - Man + Woman ~= Queen similarity: %.3f%%\n", result*100)
 }

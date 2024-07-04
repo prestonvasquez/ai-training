@@ -1,9 +1,22 @@
 // This example shows you how to use an LLM to create vector embeddings and
 // get the same results from the hand crafted solution.
 //
-// This requires running the following commands:
-// $ make dev-up		// This starts the ollama service in docker compose.
-// $ make ollama-pull	// This pulls down the model we will use.
+// # Running the example:
+//
+//   $ make example2
+//
+// # This requires running the following commands:
+//
+//   $ make dev-up      // This starts the ollama service in docker compose.
+//   $ make ollama-pull // This pulls down the model we will use.
+//
+// # Extra reading and watching:
+//
+//   https://www.youtube.com/watch?v=Fuw0wv3X-0o&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=40
+//   https://www.youtube.com/watch?v=hQwFeIupNP0&list=PLeo1K3hjS3uu7CxAacxVndI4bE_o3BDtO&index=41
+//   https://machinelearningmastery.com/what-are-word-embeddings/
+//   https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/
+
 package main
 
 import (
@@ -14,17 +27,6 @@ import (
 	"github.com/ardanlabs/vector/foundation/vector"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
-
-/*
-	https://www.ibm.com/topics/neural-networks
-	https://machinelearningmastery.com/what-are-word-embeddings/
-	https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/
-
-	The position of a data point in the learned vector space is referred to as
-	its	embedding.
-
-	NOTE: You must run `make dev-up` to run this example.
-*/
 
 type data struct {
 	Name      string
@@ -47,7 +49,8 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
-	// Apply the feature vectors to the hand crafted data points.
+	// Apply the feature vectors to the hand crafted data points. This time you
+	// need to use words since we are using a word based model.
 	dataPoints := []vector.Data{
 		data{Name: "Horse   ", Text: "Animal, Female"},
 		data{Name: "Man     ", Text: "Human,  Male,   Pants, Poor, Worker"},
@@ -56,6 +59,8 @@ func main() {
 		data{Name: "Queen   ", Text: "Human,  Female, Dress, Rich, Ruler"},
 	}
 
+	// Iterate over each data point and use the LLM to generate the vector
+	// embedding related to the model.
 	for i, dp := range dataPoints {
 		dataPoint := dp.(data)
 
@@ -70,6 +75,8 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
+	// Compare each data point to every other by performing a cosine
+	// similarity comparison using the vector embedding from the LLM.
 	for _, target := range dataPoints {
 		results := vector.Similarity(target, dataPoints...)
 
@@ -84,11 +91,14 @@ func main() {
 
 	// -------------------------------------------------------------------------
 
-	// King - Man + Woman ~= Queen
+	// Perform the same vector math as in example2 using the LLM vector embedding.
 
+	// You can perform vector math by adding and subtracting vectors.
 	kingSubMan := vector.Sub(dataPoints[3].Vector(), dataPoints[1].Vector())
-	plusWoman := vector.Add(kingSubMan, dataPoints[2].Vector())
+	kingSubManPlusWoman := vector.Add(kingSubMan, dataPoints[2].Vector())
+	queen := dataPoints[4].Vector()
 
-	result := vector.CosineSimilarity(plusWoman, dataPoints[4].Vector())
+	// Now compare a (king - Man + Woman) to a Queen.
+	result := vector.CosineSimilarity(kingSubManPlusWoman, queen)
 	fmt.Printf("King - Man + Woman ~= Queen similarity: %.3f%%\n", result*100)
 }

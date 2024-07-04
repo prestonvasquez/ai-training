@@ -2,10 +2,26 @@
 // and leverage the model's nearest neighbor support. It also shows you how to
 // use the cosine similarity algorithm to test similarity.
 //
-// This requires running the following commands:
-// $ make download-data	// This will download and uncompress the data file:
+// # Running the example:
 //
-//	http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
+//   $ make example3
+//
+// # This requires running the following command:
+//
+//   $ make download-data // This will download and uncompress the data file.
+//
+// # Data File:
+//
+//   http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Cell_Phones_and_Accessories_5.json.gz
+//
+// # WARNING
+//
+// This example uses a C++ based dynamic library that implements the Google
+// word2vec model service. That dynamic library was pre-built by me. That
+// library can be found under `foundation/word2vec/libw2v/lib/libw2v.dylib`.
+// If you don't want to use that dynamic library, the instructions to build your
+// own version exists here: https://github.com/fogfish/word2vec
+
 package main
 
 import (

@@ -1,11 +1,19 @@
 // This example show you how to use MongoDB as a vector database to perform
-// a nearest neighbor vector search.
+// a nearest neighbor vector search. The example will create a vector search
+// index, store 2 documents, and perform a vector search.
 //
-// This requires running the following commands:
-// $ make dev-up		// This starts the mongodb service in docker compose.
+// # Running the example:
 //
-// You can use this command to open a prompt to mongodb:
-// $ make mongo
+//   $ make example4
+//
+// # This requires running the following command:
+//
+//   $ make dev-up // This starts the mongodb service in docker compose.
+//
+// # You can use this command to open a prompt to mongodb:
+//
+//   $ make mongo
+
 package main
 
 import (
