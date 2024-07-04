@@ -3,7 +3,7 @@
 #
 
 # Data files
-zarf/data/example3*
+zarf/data/book.embeddings
 db_data/
 ollama/
 
