@@ -13,7 +13,7 @@ example2:
 	go run examples/example2/main.go
 
 example3:
-	go run -exec "env DYLD_LIBRARY_PATH=$$GOPATH/src/github.com/ardanlabs/vector/foundation/word2vec/libw2v/lib" examples/example3/main.go
+	go run -exec "env DYLD_LIBRARY_PATH=$$GOPATH/src/github.com/ardanlabs/ai-training/foundation/word2vec/libw2v/lib" examples/example3/main.go
 
 example4:
 	go run examples/example4/main.go

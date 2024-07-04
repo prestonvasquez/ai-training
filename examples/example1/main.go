@@ -30,7 +30,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/ardanlabs/vector/foundation/vector"
+	"github.com/ardanlabs/ai-training/foundation/vector"
 )
 
 type data struct {

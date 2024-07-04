@@ -1,4 +1,4 @@
-module github.com/ardanlabs/vector
+module github.com/ardanlabs/ai-training
 
 go 1.22.4
 

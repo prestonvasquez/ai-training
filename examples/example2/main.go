@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ardanlabs/vector/foundation/vector"
+	"github.com/ardanlabs/ai-training/foundation/vector"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
 

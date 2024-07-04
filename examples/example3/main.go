@@ -32,9 +32,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/ardanlabs/vector/foundation/stopwords"
-	"github.com/ardanlabs/vector/foundation/vector"
-	"github.com/ardanlabs/vector/foundation/word2vec"
+	"github.com/ardanlabs/ai-training/foundation/stopwords"
+	"github.com/ardanlabs/ai-training/foundation/vector"
+	"github.com/ardanlabs/ai-training/foundation/word2vec"
 )
 
 func main() {
