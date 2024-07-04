@@ -45,30 +45,9 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Open a connection with ollama to access the model.
-	llm, err := ollama.New(ollama.WithModel("mxbai-embed-large"))
-	if err != nil {
-		return fmt.Errorf("ollama: %w", err)
-	}
-
-	// Connect to mongodb.
-	client, err := mongodb.Connect(ctx, "mongodb://localhost:27017", "ardan", "ardan")
-	if err != nil {
-		return fmt.Errorf("connectToMongo: %w", err)
-	}
-
-	const dbName = "example5"
-	const collectionName = "book"
-
-	// Capture a connection to the collection. We assume this exists with
-	// data already.
-	col := client.Database(dbName).Collection(collectionName)
-
-	// -------------------------------------------------------------------------
-
 	question := "what is an interface?"
 
-	results, err := vectorSearch(ctx, llm, col, question)
+	results, err := vectorSearch(ctx, question)
 	if err != nil {
 		return fmt.Errorf("vectorSearch: %w", err)
 	}
@@ -80,7 +59,16 @@ func run() error {
 	return nil
 }
 
-func vectorSearch(ctx context.Context, llm *ollama.LLM, col *mongo.Collection, question string) ([]searchResult, error) {
+func vectorSearch(ctx context.Context, question string) ([]searchResult, error) {
+
+	// -------------------------------------------------------------------------
+	// Use ollama to generate a vector embedding for the question.
+
+	// Open a connection with ollama to access the model.
+	llm, err := ollama.New(ollama.WithModel("mxbai-embed-large"))
+	if err != nil {
+		return nil, fmt.Errorf("ollama: %w", err)
+	}
 
 	// Get the vector embedding for the question.
 	embedding, err := llm.CreateEmbedding(context.Background(), []string{question})
@@ -88,7 +76,26 @@ func vectorSearch(ctx context.Context, llm *ollama.LLM, col *mongo.Collection, q
 		return nil, fmt.Errorf("create embedding: %w", err)
 	}
 
-	// We want to find the nearest neighbors from the specified vector.
+	// -------------------------------------------------------------------------
+	// Establish a connection with mongo and access the collection.
+
+	// Connect to mongodb.
+	client, err := mongodb.Connect(ctx, "mongodb://localhost:27017", "ardan", "ardan")
+	if err != nil {
+		return nil, fmt.Errorf("connectToMongo: %w", err)
+	}
+
+	const dbName = "example5"
+	const collectionName = "book"
+
+	// Capture a connection to the collection. We assume this exists with
+	// data already.
+	col := client.Database(dbName).Collection(collectionName)
+
+	// -------------------------------------------------------------------------
+	// Perform the vector search.
+
+	// We want to find the nearest neighbors from the question vector embedding.
 	pipeline := mongo.Pipeline{
 		{{
 			Key: "$vectorSearch",
