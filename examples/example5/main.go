@@ -1,3 +1,26 @@
+// This example show you how to use MongoDB and Ollama to create a proper vector
+// embedding database of the Ultimate Go Notebook. With this vector database,
+// you will be able to query for content that has a strong similarity to your
+// question.
+//
+// The book has already been pre-processed into chunks based on the books TOC.
+// For chunks over 500 words, those chunks have been chunked again into 250
+// blocks. The code will create a vector embedding for each chunk.
+// That data can be found under `zarf/data/book.chunks`.
+//
+// The original version of the book in text format has been retained. The program
+// to clean that document into chunks can be found under `cmd/cleaner`. You can
+// run that program using `make clean-data`. This is here if you want to play
+// with your own chunking. How you chunk the data is critical to accuracy.
+//
+// # Running the example:
+//
+//   $ make example5
+//
+// # This requires running the following command:
+//
+//   $ make dev-up // This starts the mongodb and ollama service in docker compose.
+
 package main
 
 import (
