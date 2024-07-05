@@ -24,6 +24,9 @@ example5:
 example6:
 	go run examples/example6/main.go
 
+example7:
+	go run examples/example6/main.go
+
 # ==============================================================================
 # Install dependencies
 
@@ -56,6 +59,7 @@ mongo:
 
 ollama-pull:
 	ollama pull mxbai-embed-large
+	ollama pull llama3
 
 # ==============================================================================
 # Modules support
