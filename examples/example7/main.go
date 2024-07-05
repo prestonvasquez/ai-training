@@ -10,14 +10,18 @@
 // # This requires running the following commands:
 //
 //	$ make dev-up   // This starts the mongodb and ollama service in docker compose.
-//	$ make example5 // This creates the book.embeddings file
+//	$ make example6 // This creates the book.embeddings file
 
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ardanlabs/ai-training/foundation/mongodb"
@@ -43,23 +47,25 @@ func main() {
 }
 
 func run() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Ask Bill a question about Go: ")
 
-	question := "what is an interface?"
+	question, _ := reader.ReadString('\n')
+	if question == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
 
 	results, err := vectorSearch(ctx, question)
 	if err != nil {
 		return fmt.Errorf("vectorSearch: %w", err)
 	}
 
-	for _, res := range results {
-		fmt.Printf("ID: %d, Score: %.3f%%\n%s\n\n", res.ID, res.Score*100, res.Text)
+	if err := questionResponse(ctx, question, results); err != nil {
+		return fmt.Errorf("questionResponse: %w", err)
 	}
-
-	// if err := questionResponse(ctx, results); err != nil {
-	// 	return fmt.Errorf("questionResponse: %w", err)
-	// }
 
 	return nil
 }
@@ -109,8 +115,8 @@ func vectorSearch(ctx context.Context, question string) ([]searchResult, error) 
 				"exact":         false,
 				"path":          "embedding",
 				"queryVector":   embedding[0],
-				"numCandidates": 5,
-				"limit":         5,
+				"numCandidates": 2,
+				"limit":         2,
 			}},
 		},
 		{{
@@ -142,24 +148,64 @@ func vectorSearch(ctx context.Context, question string) ([]searchResult, error) 
 
 func questionResponse(ctx context.Context, question string, results []searchResult) error {
 
-	// -------------------------------------------------------------------------
-	// Use ollama to generate a vector embedding for the question.
-
 	// Open a connection with ollama to access the model.
 	llm, err := ollama.New(ollama.WithModel("llama3"))
 	if err != nil {
 		return fmt.Errorf("ollama: %w", err)
 	}
 
-	f := func(ctx context.Context, chunk []byte) error {
-		fmt.Printf("chunk len=%d: %s\n", len(chunk), chunk)
+	// Format a prompt to direct the model what to do with the content and
+	// the question.
+	prompt := `Use the following pieces of information to answer the user's question.
+	If you don't know the answer, say that you don't know.
+	
+	Context: %s
+	
+	Question: %s
+
+	Answer the question and provide additional helpful information.
+
+	Responses should be properly formatted to be easily read.
+	`
+
+	var chunks strings.Builder
+	for _, res := range results {
+		if res.Score >= .70 {
+			chunks.WriteString(res.Text)
+			chunks.WriteString(".\n")
+		}
+	}
+
+	content := chunks.String()
+	if content == "" {
+		fmt.Println("Don't have enough information to provide an answer")
 		return nil
 	}
 
-	_, err = llms.GenerateFromSinglePrompt(ctx, llm, question, llms.WithStreamingFunc(f))
-	if err != nil {
-		return fmt.Errorf("ollama: %w", err)
+	finalPrompt := fmt.Sprintf(prompt, content, question)
+
+	// Setup a wait group to wait for the entire response.
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// This function will display the response as it comes from the server.
+	f := func(ctx context.Context, chunk []byte) error {
+		if ctx.Err() != nil || len(chunk) == 0 {
+			wg.Done()
+			return nil
+		}
+
+		fmt.Printf("%s", chunk)
+		return nil
 	}
+
+	// Send the prompt to the model server.
+	if _, err := llm.Call(ctx, finalPrompt, llms.WithStreamingFunc(f)); err != nil {
+		return fmt.Errorf("call: %w", err)
+	}
+
+	// Wait until we receive the entire response.
+	wg.Wait()
 
 	return nil
 }

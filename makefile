@@ -25,7 +25,7 @@ example6:
 	go run examples/example6/main.go
 
 example7:
-	go run examples/example6/main.go
+	go run examples/example7/main.go
 
 # ==============================================================================
 # Install dependencies
